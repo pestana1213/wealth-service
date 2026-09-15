@@ -1,0 +1,153 @@
+# Wealth Service
+
+MVP para acompanhar dinheiro contribuído e onde está alocado, em EUR.
+O modelo tem apenas cinco entidades JPA:
+
+- `User`: proprietário das contas, buckets e transações.
+- `Account`: local onde o dinheiro está (banco, corretora, etc.).
+- `Bucket`: finalidade do dinheiro (casa, emergência, carro, VWCE, etc.).
+- `Goal`: montante pretendido e data opcional para um bucket.
+- `Transaction`: entrada, saída ou transferência, com montante positivo,
+  categoria, data e descrição.
+
+Investimentos são buckets com contribuições categorizadas como `INVESTMENT`.
+Não existem cotações, posições ou valorização de mercado.
+
+## Convenções das transações
+
+`providerAccountId` e `sourceBucketId` identificam a origem;
+`destinationAccountId` e `destinationBucketId` identificam o destino.
+Um bucket nulo representa dinheiro não alocado nessa conta.
+
+| Operação | Tipo | Conta origem → destino | Bucket origem → destino |
+| --- | --- | --- | --- |
+| Receber salário | INCOME | nenhum → Bank | nenhum → nenhum |
+| Alocar 3.000 € a VWCE no Bank | TRANSFER | Bank → Bank | nenhum → VWCE |
+| Mover os mesmos 3.000 € para XTB | TRANSFER | Bank → XTB | VWCE → VWCE |
+| Libertar uma alocação | TRANSFER | Bank → Bank | VWCE → nenhum |
+| Pagar uma despesa da casa | EXPENSE | Bank → nenhum | Casa → nenhum |
+
+Os saldos atuais são persistidos em `Account.currentAmount` e
+`Bucket.currentAmount`, como `BigDecimal` com duas casas decimais.
+É possível indicar um saldo inicial no construtor; por omissão é zero.
+O dashboard poderá ler estes valores diretamente:
+
+- Conta: `Account.currentAmount`, o dinheiro que está nessa conta.
+- Bucket: `Bucket.currentAmount`, o dinheiro alocado a essa finalidade.
+- Total poupado: soma dos saldos das contas.
+- Cash disponível: total poupado menos soma dos saldos dos buckets.
+
+Contas e buckets são duas perspetivas sobre o mesmo dinheiro; não se somam
+entre si. Transferências não alteram o total poupado. Uma transferência
+entre contas que preserva o bucket também não altera o saldo desse bucket.
+Os saldos iniciais podem ser definidos diretamente, sem importar todo o histórico.
+Um saldo inicial definido diretamente não deve ser novamente somado como entrada.
+
+## Estado da implementação
+
+Entidades e migração Liquibase inicial. As referências entre entidades são
+campos UUID, sem associações JPA; as chaves estrangeiras mantêm a integridade
+referencial na base de dados. Existem endpoints de criação de utilizadores,
+contas, buckets e objetivos. Os fluxos `INCOME`, `EXPENSE` e `TRANSFER` atualizam as contas e buckets
+afetados e gravam a transação no mesmo `TransactionTemplate`.
+As referências de origem e destino devem pertencer ao utilizador da transação.
+As contas e buckets são carregados com `FOR UPDATE NOWAIT`, primeiro contas
+e depois buckets, ordenados por UUID e sem bloquear o mesmo registo duas vezes.
+Se algum estiver bloqueado, a operação faz rollback e devolve `409 Conflict`,
+sem esperar pelo lock da linha nem repetir automaticamente. `@Version` permanece
+como proteção adicional contra atualizações concorrentes.
+`EXPENSE` subtrai da conta e do bucket de origem opcional; `TRANSFER` subtrai
+da origem e soma ao destino. Uma conta ou bucket presente nos dois lados
+mantém o saldo. Não é verificado saldo suficiente; débitos podem produzir
+saldos negativos. As restrições de montante existentes na entidade e na base
+de dados continuam aplicáveis.
+Ainda não existem consultas do dashboard. Persistir uma `Transaction`
+diretamente no repository não atualiza saldos; usar a action.
+A base de dados já valida montantes positivos e a estrutura das transferências.
+
+O PostgreSQL é configurado em `application.properties`; o Hibernate valida
+o esquema criado pelo Liquibase. Java 25 é necessário.
+
+## Visualização
+
+Os endpoints de leitura são:
+
+- `GET /users/{userId}/dashboard`: total, montante alocado, cash disponível,
+  contas, buckets e objetivos (incluindo progresso atual de cada objetivo).
+- `GET /users/{userId}/accounts`: contas e respetivos saldos.
+- `GET /users/{userId}/buckets`: buckets e respetivos saldos.
+- `GET /users/{userId}/goals`: objetivos e progresso atual.
+
+Todos devolvem `404 Not Found` quando o utilizador não existe.
+
+## Swagger / OpenAPI
+
+Depois de iniciar a aplicação, a documentação interativa está disponível em
+`/swagger-ui.html`. O documento OpenAPI pode ser consultado em `/api-docs`.
+
+## Métricas e logs
+
+Todas as requests HTTP são registadas com método, rota normalizada, status e
+duração. O filtro `RequestMetricsFilter` publica `wealth.http.requests` e
+`wealth.http.request.duration`, com tags de cardinalidade limitada.
+Os endpoints Actuator `health`, `info` e `metrics` estão expostos em
+`/actuator`. Consultar, por exemplo, `/actuator/metrics/wealth.http.requests`.
+
+## Criar utilizador e conta
+
+`POST /users` — cria um utilizador e devolve `201 Created` com `id`, `name` e `email`.
+
+```json
+{"name": "João", "email": "joao@example.com"}
+```
+
+`POST /accounts` — cria uma conta e devolve `201 Created` com `id`, `userId`,
+`name` e `currentAmount`. Usar o ID devolvido na criação do utilizador:
+
+```json
+{"userId": "<UUID do utilizador>", "name": "Bank", "currentAmount": 55000.00}
+```
+
+`currentAmount` é opcional (omitido ou nulo assume `0.00`), com até 17
+algarismos inteiros e duas casas decimais. O saldo é definido diretamente;
+não é criada uma transação inicial. Saldos negativos são aceites para contas
+com saldo devedor. Os nomes são obrigatórios, limitados a 255 caracteres,
+e guardados sem espaços nas extremidades.
+
+Dados inválidos devolvem `400 Bad Request`; um `userId` que não existe devolve
+`404 Not Found`. Estas operações criam registos de domínio; autenticação e
+login ainda não estão implementados.
+
+O email é obrigatório nos novos utilizadores, validado até 254 caracteres,
+guardado em minúsculas e sem espaços nas extremidades. Emails repetidos,
+independentemente de maiúsculas/minúsculas, devolvem `409 Conflict`.
+A migração preserva utilizadores antigos com email nulo; os endereços reais
+terão de ser preenchidos posteriormente. O índice único aplica-se aos emails
+preenchidos, incluindo registos concorrentes.
+
+## Criar bucket e objetivo
+
+`POST /buckets` — devolve `201 Created` com `id`, `userId`, `name` e `currentAmount`.
+
+```json
+{"userId": "<UUID do utilizador>", "name": "Casa", "currentAmount": 27000.00}
+```
+
+O utilizador deve existir. O nome é obrigatório, até 255 caracteres, e é
+guardado sem espaços nas extremidades. O saldo é opcional (omitido ou nulo
+assume zero), não negativo e limitado a 17 algarismos inteiros e duas casas
+decimais. Este saldo inicial representa uma alocação já existente; criar o
+bucket não altera saldos de contas nem cria uma transação.
+
+`POST /goals` — devolve `201 Created` com `id`, `bucketId`, `goalAmount` e `goalObjective`.
+
+```json
+{"bucketId": "<UUID do bucket>", "goalAmount": 50000.00, "goalObjective": "2027-12-31"}
+```
+
+O bucket deve existir. O montante é obrigatório, positivo e limitado a 17
+algarismos inteiros e duas casas decimais. A data é opcional, em formato
+`YYYY-MM-DD`; criar um objetivo não altera o saldo do bucket.
+
+Ambos devolvem `400 Bad Request` para dados inválidos e `404 Not Found`
+quando o utilizador ou bucket associado não existe.
