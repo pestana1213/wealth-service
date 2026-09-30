@@ -2,6 +2,7 @@ package com.finance.wealth_service.transaction.actions;
 
 import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.bucket.entity.Bucket;
+import com.finance.wealth_service.observability.WealthMetrics;
 import com.finance.wealth_service.transaction.repository.TransactionRepository;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.dao.PessimisticLockingFailureException;
@@ -28,22 +29,26 @@ public class CreateTransactionAction {
     private final BucketRepository buckets;
     private final TransactionTemplate transactionTemplate;
     private final TransactionRepository transactions;
+    private final WealthMetrics metrics;
 
-    public CreateTransactionAction(UserRepository users, AccountRepository accounts, BucketRepository buckets, TransactionTemplate transactionTemplate, TransactionRepository transactions) {
+    public CreateTransactionAction(UserRepository users, AccountRepository accounts, BucketRepository buckets, TransactionTemplate transactionTemplate, TransactionRepository transactions, WealthMetrics metrics) {
         this.users = users;
         this.accounts = accounts;
         this.buckets = buckets;
         this.transactionTemplate = transactionTemplate;
         this.transactions = transactions;
+        this.metrics = metrics;
     }
 
     public Transaction execute(CreateTransactionRequest request) {
+        long started = System.nanoTime();
         if (!validate(request)) {
+            metrics.recordTransaction("invalid", System.nanoTime() - started);
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid transaction origin, destination or ownership");
         }
 
         try {
-            return transactionTemplate.execute(_ -> {
+            Transaction created = transactionTemplate.execute(_ -> {
                 Map<UUID, Account> lockedAccounts = new HashMap<>();
                 Stream.of(request.providerAccountId(), request.destinationAccountId())
                         .filter(Objects::nonNull).distinct().sorted()
@@ -80,12 +85,19 @@ public class CreateTransactionAction {
                         request.sourceBucketId(), request.destinationBucketId(), request.transactionAmount(),
                         request.type(), request.category(), request.occurredAt(), request.description()));
             });
+            metrics.recordTransaction("created", System.nanoTime() - started);
+            return created;
         } catch (PessimisticLockingFailureException exception) {
+            metrics.recordTransaction("conflict", System.nanoTime() - started);
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Account or bucket is busy; retry the transaction", exception);
         } catch (OptimisticLockingFailureException exception) {
+            metrics.recordTransaction("conflict", System.nanoTime() - started);
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Balance changed concurrently; retry the transaction", exception);
+        } catch (ResponseStatusException exception) {
+            metrics.recordTransaction("invalid", System.nanoTime() - started);
+            throw exception;
         }
     }
 
