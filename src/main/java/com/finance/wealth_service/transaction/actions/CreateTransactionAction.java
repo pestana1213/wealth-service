@@ -6,6 +6,8 @@ import com.finance.wealth_service.observability.WealthMetrics;
 import com.finance.wealth_service.transaction.repository.TransactionRepository;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.dao.PessimisticLockingFailureException;
+
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -65,6 +67,10 @@ public class CreateTransactionAction {
 
                 if (!Objects.equals(request.providerAccountId(), request.destinationAccountId())) {
                     if (sourceAccount != null) {
+                        BigDecimal finalValue = sourceAccount.getCurrentAmount().subtract(request.transactionAmount());
+                        if (finalValue.compareTo(BigDecimal.ZERO) < 0)
+                            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Final Value from source account can't be less then 0");
+
                         sourceAccount.setCurrentAmount(sourceAccount.getCurrentAmount().subtract(request.transactionAmount()));
                     }
                     if (destinationAccount != null) {
@@ -73,6 +79,10 @@ public class CreateTransactionAction {
                 }
                 if (!Objects.equals(request.sourceBucketId(), request.destinationBucketId())) {
                     if (sourceBucket != null) {
+                        BigDecimal finalValue = sourceBucket.getCurrentAmount().subtract(request.transactionAmount());
+                        if (finalValue.compareTo(BigDecimal.ZERO) < 0)
+                            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Final Value from source bucket can't be less then 0");
+
                         sourceBucket.setCurrentAmount(sourceBucket.getCurrentAmount().subtract(request.transactionAmount()));
                     }
                     if (destinationBucket != null) {
