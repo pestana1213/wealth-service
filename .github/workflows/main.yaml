@@ -45,19 +45,26 @@ jobs:
         run: |
           git clone https://x-access-token:${{ secrets.GH_ACTIONS_TOKEN }}@github.com/pestana1213/golias-homelab.git
 
-          cd golias-homelab/apps/wealth-service
+          # The load-test app pins the same image, so the load test always runs
+          # the build that is live in production.
+          for APP in wealth-service wealth-loadtest; do
+            cd "golias-homelab/apps/$APP"
 
-          echo "Before:"
-          cat kustomization.yaml
+            echo "Before ($APP):"
+            cat kustomization.yaml
 
-          sed -i "/name: ghcr.io\/pestana1213\/wealth-service$/,/newTag:/ s/newTag:.*/newTag: ${{ github.sha }}/" kustomization.yaml
+            sed -i "/name: ghcr.io\/pestana1213\/wealth-service$/,/newTag:/ s/newTag:.*/newTag: ${{ github.sha }}/" kustomization.yaml
 
-          echo "After:"
-          cat kustomization.yaml
+            echo "After ($APP):"
+            cat kustomization.yaml
+
+            cd ../..
+          done
 
           git diff
 
-          git add kustomization.yaml
+          git add "golias-homelab/apps/wealth-service/kustomization.yaml" \
+                  "golias-homelab/apps/wealth-loadtest/kustomization.yaml"
 
           if git diff --cached --quiet; then
             echo "No changes to commit"

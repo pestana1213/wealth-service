@@ -110,3 +110,38 @@ itself.
   overdraws a bucket and trips the `400` "final value < 0" check.
 - VU-to-user assignment is `(vu.idInTest - 1) % NUM_USERS`, so lowering
   `NUM_USERS` below the VU count is another way to force contention.
+
+## Homelab
+
+The same scripts run in-cluster against an isolated database, so the test never
+touches production data. The k6 workload is a suspended `CronJob` in
+`apps/wealth-loadtest` of the `golias-homelab` repository, pointed at a separate
+`wealth_loadtest` database on the existing PostgreSQL pod.
+
+The deployment mounts these files from a `wealth-loadtest-scripts` ConfigMap,
+which is generated rather than committed, so these scripts stay the single
+source of truth. Regenerate it after changing anything here:
+
+```bash
+kubectl create configmap wealth-loadtest-scripts \
+  --from-file=wealth-service.js=wealth-service.js \
+  --from-file=config.js=lib/config.js \
+  --from-file=api.js=lib/api.js \
+  --from-file=workload.js=lib/workload.js \
+  --from-file=uuid.js=lib/uuid.js \
+  -n wealth-loadtest --dry-run=client -o yaml | kubectl apply -f -
+```
+
+`--from-file` flattens the paths, so the ConfigMap volume remaps the library keys
+back into `lib/` for the relative imports to resolve.
+
+Then run it on demand:
+
+```bash
+kubectl create job --from=cronjob/wealth-loadtest-k6 k6-run -n wealth-loadtest
+kubectl logs -f job/k6-run -n wealth-loadtest
+```
+
+Test shape is set through the `env` block in `k6-cronjob.yaml`, which
+re-initialises on every apply. Full detail, including cleanup, is in
+`apps/wealth-loadtest/README.md` in the homelab repository.
