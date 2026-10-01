@@ -43,28 +43,58 @@ jobs:
 
       - name: Update GitOps repo image tag
         run: |
-          git clone https://x-access-token:${{ secrets.GH_ACTIONS_TOKEN }}@github.com/pestana1213/golias-homelab.git
+          set -euo pipefail
 
-          # The load-test app pins the same image, so the load test always runs
-          # the build that is live in production.
-          for APP in wealth-service wealth-loadtest; do
-            cd "golias-homelab/apps/$APP"
+          git clone https://x-access-token:${{ secrets.GH_ACTIONS_TOKEN }}@github.com/pestana1213/golias-homelab.git
+          cd golias-homelab
+
+          # wealth-service is required. Any other app listed here is optional:
+          # it may not have landed on this branch yet, and a missing optional
+          # app must not block the production tag bump.
+          REQUIRED_APP=wealth-service
+          OPTIONAL_APPS="wealth-loadtest"
+
+          bump() {
+            local APP="$1" FILE="apps/$1/kustomization.yaml"
+
+            if [ ! -f "$FILE" ]; then
+              echo "::warning::$APP has no kustomization.yaml, skipping"
+              return 1
+            fi
 
             echo "Before ($APP):"
-            cat kustomization.yaml
+            cat "$FILE"
 
-            sed -i "/name: ghcr.io\/pestana1213\/wealth-service$/,/newTag:/ s/newTag:.*/newTag: ${{ github.sha }}/" kustomization.yaml
+            # Narrow range: only the wealth-service entry, so the
+            # wealth-frontend tag next to it is left alone.
+            sed -i "/name: ghcr.io\/pestana1213\/wealth-service$/,/newTag:/ s/newTag:.*/newTag: ${{ github.sha }}/" "$FILE"
+
+            # Verify rather than trust the sed exit status: a malformed range
+            # fails silently and would commit the wrong tag.
+            if ! grep -q "newTag: ${{ github.sha }}" "$FILE"; then
+              echo "::error::$APP was not updated to ${{ github.sha }}"
+              return 1
+            fi
 
             echo "After ($APP):"
-            cat kustomization.yaml
+            cat "$FILE"
+            return 0
+          }
 
-            cd ../..
+          bump "$REQUIRED_APP"
+
+          CHANGED="apps/$REQUIRED_APP/kustomization.yaml"
+
+          for APP in $OPTIONAL_APPS; do
+            if bump "$APP"; then
+              CHANGED="$CHANGED apps/$APP/kustomization.yaml"
+            fi
           done
 
           git diff
 
-          git add "golias-homelab/apps/wealth-service/kustomization.yaml" \
-                  "golias-homelab/apps/wealth-loadtest/kustomization.yaml"
+          # shellcheck disable=SC2086
+          git add $CHANGED
 
           if git diff --cached --quiet; then
             echo "No changes to commit"
