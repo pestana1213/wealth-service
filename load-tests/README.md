@@ -54,7 +54,9 @@ Executor and pacing:
 | `EXECUTOR` | `arrival` | `arrival` (open model, fixed rate) or `vus` (closed model) |
 | `RAMP_STAGES` | `25:30s,100:1m,0:15s` | `rate:duration,rate:duration` |
 | `DURATION` | `1m` | Used when `RAMP_STAGES` is not set |
-| `MAX_VUS` | `300` | Ceiling for `arrival` |
+| `START_RATE` | `10` | Initial arrival rate for `EXECUTOR=arrival` |
+| `MAX_VUS` | `300` | Ceiling for `arrival`; see below |
+| `PRE_ALLOCATED_VUS` | `50` | VUs created up front |
 | `READ_RATE` | `20` | Dashboard reads/s, `0` disables the read scenario |
 | `THINK_TIME_MS` | `0` | Simulated user pause between iterations |
 
@@ -81,25 +83,95 @@ Write mix (`W_*` are relative weights):
 `TOP_UP_EVERY` (default `25`) injects a periodic `INCOME` so balances stay away
 from the underflow guard without skewing the mix.
 
-## Two modes
+## Load profiles
 
-**Many users, low contention (default).** Each VU owns its own user, so writes
-spread across independent accounts and buckets. This measures throughput and
-latency of the happy path.
+There are no named profiles. Everything is a combination of env flags, and the
+table above lists all of them. What follows is a set of starting points.
+
+### Pick the executor first
+
+`EXECUTOR=arrival` (the default) is an **open model**: k6 keeps offering load at
+the requested rate no matter how slow the service gets. Throughput is
+independent of latency, so latency climbing while throughput holds flat is the
+clearest signal that you are approaching the ceiling. This is the mode to use for
+capacity work.
+
+`EXECUTOR=vus` is a **closed model**: a fixed number of concurrent users. Once
+the service slows down, each user simply takes longer and offered load falls
+away. That hides saturation, but it is the right model when the question is
+"what does one user experience".
+
+Do not compare a rate from one executor against a rate from the other. The
+arrival number is offered load, the VU number is concurrent users.
+
+### Profiles
+
+**Baseline, low contention.** Each VU owns its own user, so writes spread across
+independent accounts and buckets. Measures happy-path throughput and latency.
 
 ```bash
--e NUM_USERS=500 -e RAMP_STAGES='25:30s,200:2m,400:2m,0:15s'
+-e NUM_USERS=500 -e RAMP_STAGES='25:30s,200:2m,400:2m,0:15s' -e MAX_VUS=600
 ```
 
-**Many users, one account (`SHARED_USER=true`).** Every VU writes to user #1's
-accounts and buckets, which maximises row-lock contention. This is the run that
-shows how the `409` path behaves under load; the `conflict_rate` threshold is
-relaxed automatically in this mode because a high value is the measurement
-itself.
+**Contention.** Every VU writes to user #1's accounts and buckets, which
+maximises `FOR UPDATE NOWAIT` contention. This is the run that shows how the
+`409` path behaves under load; the `conflict_rate` threshold is relaxed
+automatically in this mode because a high value is the measurement itself.
 
 ```bash
--e SHARED_USER=true -e NUM_USERS=1 -e RAMP_STAGES='5:5s,150:30s,0:5s'
+-e SHARED_USER=true -e RAMP_STAGES='25:30s,100:1m,200:1m,0:15s'
 ```
+
+**Heavy.** Roughly 4x the contention profile. Expect the p95 thresholds to
+breach, which fails the run on purpose — that is the signal, not a bug.
+
+```bash
+-e SHARED_USER=true -e RAMP_STAGES='50:30s,400:2m,800:2m,0:15s' \
+  -e MAX_VUS=1200 -e PRE_ALLOCATED_VUS=200
+```
+
+**Saturation hunt.** Raise the last stage until something gives. Stop when
+either `dropped_iterations` is non-zero (k6 could not keep up) or the service
+stops holding the requested rate.
+
+```bash
+-e SHARED_USER=true -e RAMP_STAGES='100:30s,400:2m,800:2m,1600:3m,0:15s' \
+  -e MAX_VUS=2500 -e PRE_ALLOCATED_VUS=400
+```
+
+### Raising the load without breaking the measurement
+
+**`MAX_VUS` has to clear the peak rate.** Each VU runs one iteration at a time,
+so k6 needs roughly `peak_rate x p95_latency` concurrent VUs to hold a rate. It
+does not slow down when it runs short of VUs, it silently drops iterations and
+reports a throughput number lower than the one you asked for. If
+`dropped_iterations` climbs, raise `MAX_VUS` before concluding the service is
+saturated.
+
+**`PRE_ALLOCATED_VUS` only affects startup.** It is how many VUs are created up
+front, so it should be near `MAX_VUS` for a short run. Raising it costs memory
+and makes the run slower to begin, which is why it is kept well below the
+ceiling by default.
+
+**`SHARED_USER=true` makes `NUM_USERS` irrelevant.** Every VU is pinned to user
+#1, so raising `NUM_USERS` does nothing in that mode; only the arrival rate
+matters. Conversely, to raise load in low-contention mode you must raise
+`NUM_USERS`, since that is what caps the number of distinct users.
+
+**Stages must end with `0`.** `ramping-arrival-rate` uses the final stage to
+ramp down, and a run that stops at a non-zero target lingers at peak load during
+teardown.
+
+**Raise one thing at a time.** Changing the rate and the VU ceiling together
+makes it impossible to tell which one caused a threshold to move.
+
+### Reading a run
+
+`transaction_duration` p95 is the headline number. `conflict_rate` tells you
+whether you were measuring the service or the lock. If p95 rose while
+`transactions_created` held steady, the service is degrading under load; if
+`transactions_created` fell and `transactions_conflict` rose with it, the extra
+load was absorbed by `409`s and the write path was never actually slower.
 
 ## Notes
 

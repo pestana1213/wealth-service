@@ -2,7 +2,7 @@
   "version": 8,
   "dashboardId": "7511128612649566208",
   "title": "Wealth Service - overview",
-  "description": "HTTP traffic, the transaction write path and the JVM/pool signals that explain them. Every metric name in here was read off a live /actuator/prometheus scrape.",
+  "description": "HTTP traffic, the transaction write path and the JVM/pool signals that explain them.",
   "role": "",
   "owner": "joaonogueiracontacto@gmail.com",
   "created": "2026-09-30T18:23:31.266Z",
@@ -12,23 +12,23 @@
       "name": "Traffic",
       "panels": [
         {
-          "id": "http_request_rate",
-          "type": "line",
-          "title": "Request rate by route and status",
-          "description": "Server-side request rate, split by Spring's templated uri and status. This is the real traffic reaching the service.",
+          "id": "stat_rps",
+          "type": "metric",
+          "title": "Requests/s",
+          "description": "Total server-side request rate.",
           "config": {
-            "show_legends": true,
+            "show_legends": false,
             "legends_position": "bottom",
             "unit": "custom",
-            "unit_custom": "req/s",
             "decimals": 2,
             "base_map": null,
-            "map_view": null
+            "map_view": null,
+            "unit_custom": "req/s"
           },
           "queryType": "promql",
           "queries": [
             {
-              "query": "sum by (uri, status, application) (rate(http_server_requests_seconds_count{application=~\"$app\"}[1m]))",
+              "query": "sum by (application) (rate(http_server_requests_seconds_count{application=~\"${app:pipe}\"}[5m]))",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -45,17 +45,16 @@
                 }
               },
               "config": {
-                "promql_legend": "{{application}} {{uri}} {{status}}",
+                "promql_legend": "{application}",
                 "query_label": ""
-              },
-              "queryType": "promql"
+              }
             }
           ],
           "layout": {
             "x": 0,
             "y": 0,
-            "w": 96,
-            "h": 14,
+            "w": 32,
+            "h": 8,
             "i": 1
           },
           "htmlContent": "",
@@ -63,15 +62,14 @@
           "customChartContent": "option = {};"
         },
         {
-          "id": "http_error_ratio",
-          "type": "line",
-          "title": "Server error ratio",
-          "description": "Share of requests that ended in a 5xx. Reads http_server_requests_seconds_count, not wealth_http_requests_total, because the servlet filter cannot see a status that is set by the error dispatch.",
+          "id": "stat_err",
+          "type": "metric",
+          "title": "5xx ratio",
+          "description": "Share of requests ending in a 5xx. 0 means healthy.",
           "config": {
-            "show_legends": true,
+            "show_legends": false,
             "legends_position": "bottom",
-            "unit": "custom",
-            "unit_custom": "ratio",
+            "unit": "percent-1",
             "decimals": 2,
             "base_map": null,
             "map_view": null
@@ -79,7 +77,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "sum by (application) (rate(http_server_requests_seconds_count{application=~\"$app\", status=~\"5..\"}[1m])) / clamp_min(sum by (application) (rate(http_server_requests_seconds_count{application=~\"$app\"}[1m])), 0.000001)",
+              "query": "(sum by (application) (rate(http_server_requests_seconds_count{application=~\"${app:pipe}\", status=~\"5..\"}[5m])) or 0 * sum by (application) (rate(http_server_requests_seconds_count{application=~\"${app:pipe}\"}[5m]))) / clamp_min(sum by (application) (rate(http_server_requests_seconds_count{application=~\"${app:pipe}\"}[5m])), 0.000001)",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -96,17 +94,16 @@
                 }
               },
               "config": {
-                "promql_legend": "{{application}} 5xx ratio",
+                "promql_legend": "{application}",
                 "query_label": ""
-              },
-              "queryType": "promql"
+              }
             }
           ],
           "layout": {
-            "x": 96,
+            "x": 32,
             "y": 0,
-            "w": 96,
-            "h": 14,
+            "w": 32,
+            "h": 8,
             "i": 2
           },
           "htmlContent": "",
@@ -114,23 +111,22 @@
           "customChartContent": "option = {};"
         },
         {
-          "id": "http_latency_mean_max",
-          "type": "line",
-          "title": "Latency, mean and max, all routes",
-          "description": "Mean is sum/count rather than a quantile so the panel still works if histogram buckets are ever disabled.",
+          "id": "stat_lat",
+          "type": "metric",
+          "title": "Mean latency",
+          "description": "Mean latency across all routes.",
           "config": {
-            "show_legends": true,
+            "show_legends": false,
             "legends_position": "bottom",
             "unit": "seconds",
-            "unit_custom": null,
-            "decimals": 2,
+            "decimals": 3,
             "base_map": null,
             "map_view": null
           },
           "queryType": "promql",
           "queries": [
             {
-              "query": "sum by (application) (rate(http_server_requests_seconds_sum{application=~\"$app\"}[1m])) / clamp_min(sum by (application) (rate(http_server_requests_seconds_count{application=~\"$app\"}[1m])), 0.000001)",
+              "query": "sum by (application) (rate(http_server_requests_seconds_sum{application=~\"${app:pipe}\"}[5m])) / clamp_min(sum by (application) (rate(http_server_requests_seconds_count{application=~\"${app:pipe}\"}[5m])), 0.000001)",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -147,40 +143,16 @@
                 }
               },
               "config": {
-                "promql_legend": "{{application}} mean",
+                "promql_legend": "{application}",
                 "query_label": ""
-              },
-              "queryType": "promql"
-            },
-            {
-              "query": "max by (application) (http_server_requests_seconds_max{application=~\"$app\"})",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "http_server_requests_seconds_max",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} max",
-                "query_label": ""
-              },
-              "queryType": "promql"
+              }
             }
           ],
           "layout": {
-            "x": 0,
-            "y": 14,
-            "w": 96,
-            "h": 14,
+            "x": 64,
+            "y": 0,
+            "w": 32,
+            "h": 8,
             "i": 3
           },
           "htmlContent": "",
@@ -188,27 +160,26 @@
           "customChartContent": "option = {};"
         },
         {
-          "id": "http_latency_p95",
-          "type": "line",
-          "title": "Latency p95 and p99, all routes",
-          "description": "Requires management.metrics.distribution.percentiles-histogram.http.server.requests=true. Without it http_server_requests_seconds is a summary and this panel stays empty.",
+          "id": "stat_heap",
+          "type": "metric",
+          "title": "Heap after GC",
+          "description": "Long-lived heap occupancy after the last GC. A rising baseline over hours points at a leak.",
           "config": {
-            "show_legends": true,
+            "show_legends": false,
             "legends_position": "bottom",
-            "unit": "seconds",
-            "unit_custom": null,
-            "decimals": 2,
+            "unit": "percent-1",
+            "decimals": 1,
             "base_map": null,
             "map_view": null
           },
           "queryType": "promql",
           "queries": [
             {
-              "query": "histogram_quantile(0.95, sum by (le, application) (rate(http_server_requests_seconds_bucket{application=~\"$app\"}[1m])))",
+              "query": "max by (application) (jvm_memory_usage_after_gc_percent{application=~\"${app:pipe}\", area=\"heap\", pool=\"long-lived\"})",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
-                "stream": "http_server_requests_seconds_bucket",
+                "stream": "jvm_memory_usage_after_gc_percent",
                 "stream_type": "metrics",
                 "x": [],
                 "y": [],
@@ -221,40 +192,16 @@
                 }
               },
               "config": {
-                "promql_legend": "{{application}} p95",
+                "promql_legend": "{application}",
                 "query_label": ""
-              },
-              "queryType": "promql"
-            },
-            {
-              "query": "histogram_quantile(0.99, sum by (le, application) (rate(http_server_requests_seconds_bucket{application=~\"$app\"}[1m])))",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "http_server_requests_seconds_bucket",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} p99",
-                "query_label": ""
-              },
-              "queryType": "promql"
+              }
             }
           ],
           "layout": {
             "x": 96,
-            "y": 14,
-            "w": 96,
-            "h": 14,
+            "y": 0,
+            "w": 32,
+            "h": 8,
             "i": 4
           },
           "htmlContent": "",
@@ -262,555 +209,14 @@
           "customChartContent": "option = {};"
         },
         {
-          "id": "dashboard_action_duration",
-          "type": "line",
-          "title": "Dashboard query duration by result, mean",
-          "description": "Time inside GetDashboardAction only, excluding HTTP overhead. result=not_found is the 404 branch and returns before any query runs.",
+          "id": "stat_pool",
+          "type": "metric",
+          "title": "DB pool in use",
+          "description": "Active connections.",
           "config": {
-            "show_legends": true,
-            "legends_position": "bottom",
-            "unit": "seconds",
-            "unit_custom": null,
-            "decimals": 2,
-            "base_map": null,
-            "map_view": null
-          },
-          "queryType": "promql",
-          "queries": [
-            {
-              "query": "sum by (result, application) (rate(wealth_dashboard_duration_seconds_sum{application=~\"$app\"}[1m])) / clamp_min(sum by (result, application) (rate(wealth_dashboard_duration_seconds_count{application=~\"$app\"}[1m])), 0.000001)",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "wealth_dashboard_duration_seconds_sum",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} {{result}}",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            }
-          ],
-          "layout": {
-            "x": 0,
-            "y": 28,
-            "w": 96,
-            "h": 14,
-            "i": 5
-          },
-          "htmlContent": "",
-          "markdownContent": "",
-          "customChartContent": "option = {};"
-        },
-        {
-          "id": "dashboard_failures",
-          "type": "line",
-          "title": "Dashboard failures by reason",
-          "description": "reason=not_found is a missing user id. reason=error is an unexpected failure inside the aggregation and is the one worth paging on.",
-          "config": {
-            "show_legends": true,
-            "legends_position": "bottom",
-            "unit": "custom",
-            "unit_custom": "errors/s",
-            "decimals": 2,
-            "base_map": null,
-            "map_view": null
-          },
-          "queryType": "promql",
-          "queries": [
-            {
-              "query": "sum by (reason, application) (rate(wealth_dashboard_failures_total{application=~\"$app\"}[1m]))",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "wealth_dashboard_failures_total",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} {{reason}}",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            }
-          ],
-          "layout": {
-            "x": 96,
-            "y": 28,
-            "w": 96,
-            "h": 14,
-            "i": 6
-          },
-          "htmlContent": "",
-          "markdownContent": "",
-          "customChartContent": "option = {};"
-        }
-      ]
-    },
-    {
-      "tabId": "transactions",
-      "name": "Transactions",
-      "panels": [
-        {
-          "id": "txn_outcomes",
-          "type": "line",
-          "title": "Transaction outcomes per second",
-          "description": "created is a committed balance change; invalid is a rejected request shape (400); conflict is a rejected concurrent write (409).",
-          "config": {
-            "show_legends": true,
-            "legends_position": "bottom",
-            "unit": "custom",
-            "unit_custom": "ops/s",
-            "decimals": 2,
-            "base_map": null,
-            "map_view": null
-          },
-          "queryType": "promql",
-          "queries": [
-            {
-              "query": "sum by (outcome, application) (rate(wealth_transactions_total{application=~\"$app\"}[1m]))",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "wealth_transactions_total",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} {{outcome}}",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            }
-          ],
-          "layout": {
-            "x": 0,
-            "y": 0,
-            "w": 96,
-            "h": 14,
-            "i": 7
-          },
-          "htmlContent": "",
-          "markdownContent": "",
-          "customChartContent": "option = {};"
-        },
-        {
-          "id": "txn_conflict_ratio",
-          "type": "line",
-          "title": "Conflict ratio",
-          "description": "Share of transaction attempts lost to lock contention. Accounts and buckets are locked FOR UPDATE NOWAIT, so a contended write fails fast with 409 rather than waiting; the client is expected to retry.",
-          "config": {
-            "show_legends": true,
-            "legends_position": "bottom",
-            "unit": "custom",
-            "unit_custom": "ratio",
-            "decimals": 2,
-            "base_map": null,
-            "map_view": null
-          },
-          "queryType": "promql",
-          "queries": [
-            {
-              "query": "sum by (application) (rate(wealth_transactions_total{application=~\"$app\", outcome=\"conflict\"}[1m])) / clamp_min(sum by (application) (rate(wealth_transactions_total{application=~\"$app\"}[1m])), 0.000001)",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "wealth_transactions_total",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} conflict ratio",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            }
-          ],
-          "layout": {
-            "x": 96,
-            "y": 0,
-            "w": 96,
-            "h": 14,
-            "i": 8
-          },
-          "htmlContent": "",
-          "markdownContent": "",
-          "customChartContent": "option = {};"
-        },
-        {
-          "id": "txn_duration_mean_max",
-          "type": "line",
-          "title": "Transaction duration, mean and max, by outcome",
-          "description": "A rising max on outcome=conflict with a flat mean means a single write is blocking on a row lock long enough to matter.",
-          "config": {
-            "show_legends": true,
-            "legends_position": "bottom",
-            "unit": "seconds",
-            "unit_custom": null,
-            "decimals": 2,
-            "base_map": null,
-            "map_view": null
-          },
-          "queryType": "promql",
-          "queries": [
-            {
-              "query": "sum by (outcome, application) (rate(wealth_transaction_duration_seconds_sum{application=~\"$app\"}[1m])) / clamp_min(sum by (outcome, application) (rate(wealth_transaction_duration_seconds_count{application=~\"$app\"}[1m])), 0.000001)",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "wealth_transaction_duration_seconds_sum",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} {{outcome}} mean",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            },
-            {
-              "query": "max by (outcome, application) (wealth_transaction_duration_seconds_max{application=~\"$app\"})",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "wealth_transaction_duration_seconds_max",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} {{outcome}} max",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            }
-          ],
-          "layout": {
-            "x": 0,
-            "y": 14,
-            "w": 96,
-            "h": 14,
-            "i": 9
-          },
-          "htmlContent": "",
-          "markdownContent": "",
-          "customChartContent": "option = {};"
-        },
-        {
-          "id": "txn_duration_p95",
-          "type": "line",
-          "title": "Transaction duration p95 by outcome",
-          "description": "Buckets are published by the timer's publishPercentileHistogram, so this works without extra configuration.",
-          "config": {
-            "show_legends": true,
-            "legends_position": "bottom",
-            "unit": "seconds",
-            "unit_custom": null,
-            "decimals": 2,
-            "base_map": null,
-            "map_view": null
-          },
-          "queryType": "promql",
-          "queries": [
-            {
-              "query": "histogram_quantile(0.95, sum by (le, outcome, application) (rate(wealth_transaction_duration_seconds_bucket{application=~\"$app\"}[1m])))",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "wealth_transaction_duration_seconds_bucket",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} p95 {{outcome}}",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            }
-          ],
-          "layout": {
-            "x": 96,
-            "y": 14,
-            "w": 96,
-            "h": 14,
-            "i": 10
-          },
-          "htmlContent": "",
-          "markdownContent": "",
-          "customChartContent": "option = {};"
-        },
-        {
-          "id": "txn_write_latency",
-          "type": "line",
-          "title": "POST /transactions latency, mean and max",
-          "description": "Full HTTP latency of the write endpoint, for comparison against the in-action timer above.",
-          "config": {
-            "show_legends": true,
-            "legends_position": "bottom",
-            "unit": "seconds",
-            "unit_custom": null,
-            "decimals": 2,
-            "base_map": null,
-            "map_view": null
-          },
-          "queryType": "promql",
-          "queries": [
-            {
-              "query": "sum by (application) (rate(http_server_requests_seconds_sum{application=~\"$app\", uri=\"/transactions\"}[1m])) / clamp_min(sum by (application) (rate(http_server_requests_seconds_count{application=~\"$app\", uri=\"/transactions\"}[1m])), 0.000001)",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "http_server_requests_seconds_sum",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} mean",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            },
-            {
-              "query": "max by (application) (http_server_requests_seconds_max{application=~\"$app\", uri=\"/transactions\"})",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "http_server_requests_seconds_max",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} max",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            }
-          ],
-          "layout": {
-            "x": 0,
-            "y": 28,
-            "w": 96,
-            "h": 14,
-            "i": 11
-          },
-          "htmlContent": "",
-          "markdownContent": "",
-          "customChartContent": "option = {};"
-        },
-        {
-          "id": "txn_http_status",
-          "type": "line",
-          "title": "Transaction responses by status",
-          "description": "201 committed, 400 malformed or invalid route, 409 lock contention, 500 unexpected. The 500 line is the one to alert on.",
-          "config": {
-            "show_legends": true,
-            "legends_position": "bottom",
-            "unit": "custom",
-            "unit_custom": "req/s",
-            "decimals": 2,
-            "base_map": null,
-            "map_view": null
-          },
-          "queryType": "promql",
-          "queries": [
-            {
-              "query": "sum by (status, application) (rate(http_server_requests_seconds_count{application=~\"$app\", uri=\"/transactions\"}[1m]))",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "http_server_requests_seconds_count",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} HTTP {{status}}",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            }
-          ],
-          "layout": {
-            "x": 96,
-            "y": 28,
-            "w": 96,
-            "h": 14,
-            "i": 12
-          },
-          "htmlContent": "",
-          "markdownContent": "",
-          "customChartContent": "option = {};"
-        }
-      ]
-    },
-    {
-      "tabId": "jvm",
-      "name": "JVM, pool and process",
-      "panels": [
-        {
-          "id": "jvm_heap",
-          "type": "line",
-          "title": "JVM heap used against max",
-          "description": "A sawtooth that returns to baseline is healthy. A floor that ratchets up across a long run is a retention problem.",
-          "config": {
-            "show_legends": true,
-            "legends_position": "bottom",
-            "unit": "bytes",
-            "unit_custom": null,
-            "decimals": 2,
-            "base_map": null,
-            "map_view": null
-          },
-          "queryType": "promql",
-          "queries": [
-            {
-              "query": "sum by (application) (jvm_memory_used_bytes{application=~\"$app\", area=\"heap\"})",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "jvm_memory_used_bytes",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} heap used",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            },
-            {
-              "query": "sum by (application) (jvm_memory_max_bytes{application=~\"$app\", area=\"heap\"})",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "jvm_memory_max_bytes",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} heap max",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            }
-          ],
-          "layout": {
-            "x": 0,
-            "y": 0,
-            "w": 96,
-            "h": 14,
-            "i": 13
-          },
-          "htmlContent": "",
-          "markdownContent": "",
-          "customChartContent": "option = {};"
-        },
-        {
-          "id": "jvm_threads",
-          "type": "line",
-          "title": "JVM threads",
-          "description": "Names are jvm_threads_live_threads and jvm_threads_daemon_threads on Spring Boot 4. The older jvm_threads_live and jvm_threads_daemon spellings do not exist in this Micrometer version and would render an empty panel.",
-          "config": {
-            "show_legends": true,
+            "show_legends": false,
             "legends_position": "bottom",
             "unit": "none",
-            "unit_custom": null,
             "decimals": 0,
             "base_map": null,
             "map_view": null
@@ -818,206 +224,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "max by (application) (jvm_threads_live_threads{application=~\"$app\"})",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "jvm_threads_live_threads",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} threads live",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            },
-            {
-              "query": "max by (application) (jvm_threads_daemon_threads{application=~\"$app\"})",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "jvm_threads_daemon_threads",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} daemon",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            }
-          ],
-          "layout": {
-            "x": 96,
-            "y": 0,
-            "w": 96,
-            "h": 14,
-            "i": 14
-          },
-          "htmlContent": "",
-          "markdownContent": "",
-          "customChartContent": "option = {};"
-        },
-        {
-          "id": "jvm_gc_pause",
-          "type": "line",
-          "title": "GC pause, max per collection",
-          "description": "Max is used rather than a quantile because the GC binder's pause timer is not guaranteed to publish buckets.",
-          "config": {
-            "show_legends": true,
-            "legends_position": "bottom",
-            "unit": "seconds",
-            "unit_custom": null,
-            "decimals": 2,
-            "base_map": null,
-            "map_view": null
-          },
-          "queryType": "promql",
-          "queries": [
-            {
-              "query": "max by (application) (jvm_gc_pause_seconds_max{application=~\"$app\"})",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "jvm_gc_pause_seconds_max",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} max pause",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            }
-          ],
-          "layout": {
-            "x": 0,
-            "y": 14,
-            "w": 96,
-            "h": 14,
-            "i": 15
-          },
-          "htmlContent": "",
-          "markdownContent": "",
-          "customChartContent": "option = {};"
-        },
-        {
-          "id": "jvm_gc_overhead",
-          "type": "line",
-          "title": "GC overhead and allocation rate",
-          "description": "Allocation rate climbing with pause time points at request handling allocating per call, not at a leak.",
-          "config": {
-            "show_legends": true,
-            "legends_position": "bottom",
-            "unit": "percent-1",
-            "unit_custom": null,
-            "decimals": 2,
-            "base_map": null,
-            "map_view": null
-          },
-          "queryType": "promql",
-          "queries": [
-            {
-              "query": "avg by (application) (rate(jvm_gc_pause_seconds_sum{application=~\"$app\"}[1m]))",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "jvm_gc_pause_seconds_sum",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} GC time ratio",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            },
-            {
-              "query": "sum by (application) (rate(jvm_gc_memory_allocated_bytes_total{application=~\"$app\"}[1m]))",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "jvm_gc_memory_allocated_bytes_total",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} B/s allocated",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            }
-          ],
-          "layout": {
-            "x": 96,
-            "y": 14,
-            "w": 96,
-            "h": 14,
-            "i": 16
-          },
-          "htmlContent": "",
-          "markdownContent": "",
-          "customChartContent": "option = {};"
-        },
-        {
-          "id": "db_pool",
-          "type": "line",
-          "title": "Database connection pool",
-          "description": "Pending at or near max with a growing acquire time means the pool is the bottleneck; a non-zero timeout rate is the hard failure.",
-          "config": {
-            "show_legends": true,
-            "legends_position": "bottom",
-            "unit": "none",
-            "unit_custom": null,
-            "decimals": 0,
-            "base_map": null,
-            "map_view": null
-          },
-          "queryType": "promql",
-          "queries": [
-            {
-              "query": "max by (application) (hikaricp_connections_active{application=~\"$app\"})",
+              "query": "max by (application) (hikaricp_connections_active{application=~\"${app:pipe}\"})",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -1034,207 +241,39 @@
                 }
               },
               "config": {
-                "promql_legend": "{{application}} in use",
+                "promql_legend": "{application}",
                 "query_label": ""
-              },
-              "queryType": "promql"
-            },
-            {
-              "query": "max by (application) (hikaricp_connections_max{application=~\"$app\"})",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "hikaricp_connections_max",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} pool max",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            },
-            {
-              "query": "max by (application) (hikaricp_connections_pending{application=~\"$app\"})",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "hikaricp_connections_pending",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} pending",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            },
-            {
-              "query": "sum by (application) (rate(hikaricp_connections_timeout_total{application=~\"$app\"}[1m]))",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "hikaricp_connections_timeout_total",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} timeouts/s",
-                "query_label": ""
-              },
-              "queryType": "promql"
+              }
             }
           ],
           "layout": {
-            "x": 0,
-            "y": 28,
-            "w": 96,
-            "h": 14,
-            "i": 17
+            "x": 128,
+            "y": 0,
+            "w": 32,
+            "h": 8,
+            "i": 5
           },
           "htmlContent": "",
           "markdownContent": "",
           "customChartContent": "option = {};"
         },
         {
-          "id": "db_pool_acquire",
-          "type": "line",
-          "title": "Pool acquire latency",
-          "description": "Mean connection acquisition time. Rises before active connections do, so it is the earlier warning of pool exhaustion.",
+          "id": "stat_uptime",
+          "type": "metric",
+          "title": "Uptime",
+          "description": "Process uptime.",
           "config": {
-            "show_legends": true,
+            "show_legends": false,
             "legends_position": "bottom",
             "unit": "seconds",
-            "unit_custom": null,
-            "decimals": 2,
+            "decimals": 0,
             "base_map": null,
             "map_view": null
           },
           "queryType": "promql",
           "queries": [
             {
-              "query": "sum by (application) (rate(hikaricp_connections_acquire_seconds_sum{application=~\"$app\"}[1m])) / clamp_min(sum by (application) (rate(hikaricp_connections_acquire_seconds_count{application=~\"$app\"}[1m])), 0.000001)",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "hikaricp_connections_acquire_seconds_sum",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} mean acquire",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            }
-          ],
-          "layout": {
-            "x": 96,
-            "y": 28,
-            "w": 96,
-            "h": 14,
-            "i": 18
-          },
-          "htmlContent": "",
-          "markdownContent": "",
-          "customChartContent": "option = {};"
-        },
-        {
-          "id": "process_resources",
-          "type": "line",
-          "title": "CPU, file descriptors and uptime",
-          "description": "process_cpu_usage is a fraction of one core, not a percentage of the machine; divide by the core count for total utilisation.",
-          "config": {
-            "show_legends": true,
-            "legends_position": "bottom",
-            "unit": "percent-1",
-            "unit_custom": null,
-            "decimals": 2,
-            "base_map": null,
-            "map_view": null
-          },
-          "queryType": "promql",
-          "queries": [
-            {
-              "query": "avg by (application) (process_cpu_usage{application=~\"$app\"})",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "process_cpu_usage",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} CPU",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            },
-            {
-              "query": "sum by (application) (process_files_open_files{application=~\"$app\"})",
-              "vrlFunctionQuery": "",
-              "customQuery": true,
-              "fields": {
-                "stream": "process_files_open_files",
-                "stream_type": "metrics",
-                "x": [],
-                "y": [],
-                "z": [],
-                "breakdown": [],
-                "filter": {
-                  "filterType": "group",
-                  "logicalOperator": "AND",
-                  "conditions": []
-                }
-              },
-              "config": {
-                "promql_legend": "{{application}} open FDs",
-                "query_label": ""
-              },
-              "queryType": "promql"
-            },
-            {
-              "query": "max by (application) (process_uptime_seconds{application=~\"$app\"})",
+              "query": "max by (application) (process_uptime_seconds{application=~\"${app:pipe}\"})",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -1251,10 +290,1276 @@
                 }
               },
               "config": {
-                "promql_legend": "{{application}} uptime s",
+                "promql_legend": "{application}",
                 "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 160,
+            "y": 0,
+            "w": 32,
+            "h": 8,
+            "i": 6
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "http_request_rate",
+          "type": "line",
+          "title": "Request rate by route and status",
+          "description": "Server-side request rate split by templated uri and status.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "custom",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null,
+            "unit_custom": "req/s"
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (uri, status, application) (rate(http_server_requests_seconds_count{application=~\"${app:pipe}\"}[5m]))",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "http_server_requests_seconds_count",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
               },
-              "queryType": "promql"
+              "config": {
+                "promql_legend": "{application} {uri} {status}",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 8,
+            "w": 96,
+            "h": 14,
+            "i": 7
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "http_error_ratio",
+          "type": "line",
+          "title": "Server error ratio",
+          "description": "Share of requests ending in a 5xx. Uses http_server_requests_seconds_count; a flat zero line means no errors.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "percent-1",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "(sum by (application) (rate(http_server_requests_seconds_count{application=~\"${app:pipe}\", status=~\"5..\"}[5m])) or 0 * sum by (application) (rate(http_server_requests_seconds_count{application=~\"${app:pipe}\"}[5m]))) / clamp_min(sum by (application) (rate(http_server_requests_seconds_count{application=~\"${app:pipe}\"}[5m])), 0.000001)",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "http_server_requests_seconds_count",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} 5xx ratio",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 96,
+            "y": 8,
+            "w": 96,
+            "h": 14,
+            "i": 8
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "http_latency_mean_max",
+          "type": "line",
+          "title": "Latency, mean and max, all routes",
+          "description": "Mean is sum/count. Max is the per-scrape-window maximum.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "seconds",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (application) (rate(http_server_requests_seconds_sum{application=~\"${app:pipe}\"}[5m])) / clamp_min(sum by (application) (rate(http_server_requests_seconds_count{application=~\"${app:pipe}\"}[5m])), 0.000001)",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "http_server_requests_seconds_sum",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} mean",
+                "query_label": ""
+              }
+            },
+            {
+              "query": "max by (application) (http_server_requests_seconds_max{application=~\"${app:pipe}\"})",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "http_server_requests_seconds_max",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} max",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 22,
+            "w": 96,
+            "h": 14,
+            "i": 9
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "http_latency_p95",
+          "type": "line",
+          "title": "Latency p95 and p99, all routes",
+          "description": "Needs management.metrics.distribution.percentiles-histogram.http.server.requests=true. Empty without it.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "seconds",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "histogram_quantile(0.95, sum by (le, application) (rate(http_server_requests_seconds_bucket{application=~\"${app:pipe}\"}[5m])))",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "http_server_requests_seconds_bucket",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} p95",
+                "query_label": ""
+              }
+            },
+            {
+              "query": "histogram_quantile(0.99, sum by (le, application) (rate(http_server_requests_seconds_bucket{application=~\"${app:pipe}\"}[5m])))",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "http_server_requests_seconds_bucket",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} p99",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 96,
+            "y": 22,
+            "w": 96,
+            "h": 14,
+            "i": 10
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "http_latency_by_route",
+          "type": "line",
+          "title": "Mean latency by route",
+          "description": "Where the slow routes are.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "seconds",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (uri, application) (rate(http_server_requests_seconds_sum{application=~\"${app:pipe}\"}[5m])) / clamp_min(sum by (uri, application) (rate(http_server_requests_seconds_count{application=~\"${app:pipe}\"}[5m])), 0.000001)",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "http_server_requests_seconds_sum",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} {uri}",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 36,
+            "w": 96,
+            "h": 14,
+            "i": 11
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "http_client_errors",
+          "type": "line",
+          "title": "4xx rate by route",
+          "description": "Client errors by route and status; spikes usually mean a bad client or a broken deploy.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "custom",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null,
+            "unit_custom": "req/s"
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (uri, status, application) (rate(http_server_requests_seconds_count{application=~\"${app:pipe}\", status=~\"4..\"}[5m]))",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "http_server_requests_seconds_count",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} {uri} {status}",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 96,
+            "y": 36,
+            "w": 96,
+            "h": 14,
+            "i": 12
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "dashboard_action_duration",
+          "type": "line",
+          "title": "Dashboard query duration by result, mean",
+          "description": "Time inside GetDashboardAction only. result=not_found returns before any query runs.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "seconds",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (result, application) (rate(wealth_dashboard_duration_seconds_sum{application=~\"${app:pipe}\"}[5m])) / clamp_min(sum by (result, application) (rate(wealth_dashboard_duration_seconds_count{application=~\"${app:pipe}\"}[5m])), 0.000001)",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "wealth_dashboard_duration_seconds_sum",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} {result}",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 50,
+            "w": 96,
+            "h": 14,
+            "i": 13
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "dashboard_failures",
+          "type": "line",
+          "title": "Dashboard failures by reason",
+          "description": "reason=not_found is a missing user id; reason=error is an unexpected failure and the one to page on. Empty means no failures yet.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "custom",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null,
+            "unit_custom": "errors/s"
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (reason, application) (rate(wealth_dashboard_failures_total{application=~\"${app:pipe}\"}[5m]))",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "wealth_dashboard_failures_total",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} {reason}",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 96,
+            "y": 50,
+            "w": 96,
+            "h": 14,
+            "i": 14
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        }
+      ]
+    },
+    {
+      "tabId": "transactions",
+      "name": "Transactions",
+      "panels": [
+        {
+          "id": "txn_outcomes",
+          "type": "line",
+          "title": "Transaction outcomes per second",
+          "description": "created = committed; invalid = rejected request shape (400); conflict = lost row lock (409).",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "custom",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null,
+            "unit_custom": "ops/s"
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (outcome, application) (rate(wealth_transactions_total{application=~\"${app:pipe}\"}[5m]))",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "wealth_transactions_total",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} {outcome}",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 96,
+            "h": 14,
+            "i": 15
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "txn_conflict_ratio",
+          "type": "line",
+          "title": "Conflict ratio",
+          "description": "Share of attempts lost to FOR UPDATE NOWAIT contention; clients are expected to retry. Flat zero means no contention.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "percent-1",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "(sum by (application) (rate(wealth_transactions_total{application=~\"${app:pipe}\", outcome=\"conflict\"}[5m])) or 0 * sum by (application) (rate(wealth_transactions_total{application=~\"${app:pipe}\"}[5m]))) / clamp_min(sum by (application) (rate(wealth_transactions_total{application=~\"${app:pipe}\"}[5m])), 0.000001)",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "wealth_transactions_total",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} conflict ratio",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 96,
+            "y": 0,
+            "w": 96,
+            "h": 14,
+            "i": 16
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "txn_duration_mean_max",
+          "type": "line",
+          "title": "Transaction duration, mean and max, by outcome",
+          "description": "A rising max on outcome=conflict with a flat mean means one write is blocking on a row lock.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "seconds",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (outcome, application) (rate(wealth_transaction_duration_seconds_sum{application=~\"${app:pipe}\"}[5m])) / clamp_min(sum by (outcome, application) (rate(wealth_transaction_duration_seconds_count{application=~\"${app:pipe}\"}[5m])), 0.000001)",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "wealth_transaction_duration_seconds_sum",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} {outcome} mean",
+                "query_label": ""
+              }
+            },
+            {
+              "query": "max by (outcome, application) (wealth_transaction_duration_seconds_max{application=~\"${app:pipe}\"})",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "wealth_transaction_duration_seconds_max",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} {outcome} max",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 14,
+            "w": 96,
+            "h": 14,
+            "i": 17
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "txn_duration_p95",
+          "type": "line",
+          "title": "Transaction duration p95 by outcome",
+          "description": "Buckets come from the timer's publishPercentileHistogram.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "seconds",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "histogram_quantile(0.95, sum by (le, outcome, application) (rate(wealth_transaction_duration_seconds_bucket{application=~\"${app:pipe}\"}[5m])))",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "wealth_transaction_duration_seconds_bucket",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} p95 {outcome}",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 96,
+            "y": 14,
+            "w": 96,
+            "h": 14,
+            "i": 18
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "txn_write_latency",
+          "type": "line",
+          "title": "POST /transactions latency, mean and max",
+          "description": "Full HTTP latency of the write endpoint, to compare with the in-action timer.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "seconds",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (application) (rate(http_server_requests_seconds_sum{application=~\"${app:pipe}\", uri=\"/transactions\"}[5m])) / clamp_min(sum by (application) (rate(http_server_requests_seconds_count{application=~\"${app:pipe}\", uri=\"/transactions\"}[5m])), 0.000001)",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "http_server_requests_seconds_sum",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} mean",
+                "query_label": ""
+              }
+            },
+            {
+              "query": "max by (application) (http_server_requests_seconds_max{application=~\"${app:pipe}\", uri=\"/transactions\"})",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "http_server_requests_seconds_max",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} max",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 28,
+            "w": 96,
+            "h": 14,
+            "i": 19
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "txn_http_status",
+          "type": "line",
+          "title": "Transaction responses by status",
+          "description": "201 committed, 400 invalid, 409 lock contention, 500 unexpected. Alert on 500.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "custom",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null,
+            "unit_custom": "req/s"
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (status, application) (rate(http_server_requests_seconds_count{application=~\"${app:pipe}\", uri=\"/transactions\"}[5m]))",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "http_server_requests_seconds_count",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} HTTP {status}",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 96,
+            "y": 28,
+            "w": 96,
+            "h": 14,
+            "i": 20
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        }
+      ]
+    },
+    {
+      "tabId": "jvm",
+      "name": "JVM, pool and process",
+      "panels": [
+        {
+          "id": "jvm_heap",
+          "type": "line",
+          "title": "JVM heap used against max",
+          "description": "A sawtooth returning to baseline is healthy; a ratcheting floor is a retention problem.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "bytes",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (application) (jvm_memory_used_bytes{application=~\"${app:pipe}\", area=\"heap\"})",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "jvm_memory_used_bytes",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} heap used",
+                "query_label": ""
+              }
+            },
+            {
+              "query": "sum by (application) (jvm_memory_max_bytes{application=~\"${app:pipe}\", area=\"heap\"} > 0)",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "jvm_memory_max_bytes",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} heap max",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 96,
+            "h": 14,
+            "i": 21
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "jvm_heap_after_gc",
+          "type": "line",
+          "title": "Heap after GC (long-lived pool)",
+          "description": "Occupancy of the old generation after each collection. The leak indicator.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "percent-1",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "max by (application) (jvm_memory_usage_after_gc_percent{application=~\"${app:pipe}\", area=\"heap\", pool=\"long-lived\"})",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "jvm_memory_usage_after_gc_percent",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} after GC",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 96,
+            "y": 0,
+            "w": 96,
+            "h": 14,
+            "i": 22
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "jvm_threads",
+          "type": "line",
+          "title": "JVM threads",
+          "description": "Names are jvm_threads_live_threads / jvm_threads_daemon_threads on Spring Boot 4.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "none",
+            "decimals": 0,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "max by (application) (jvm_threads_live_threads{application=~\"${app:pipe}\"})",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "jvm_threads_live_threads",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} threads live",
+                "query_label": ""
+              }
+            },
+            {
+              "query": "max by (application) (jvm_threads_daemon_threads{application=~\"${app:pipe}\"})",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "jvm_threads_daemon_threads",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} daemon",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 14,
+            "w": 96,
+            "h": 14,
+            "i": 23
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "jvm_gc_pause",
+          "type": "line",
+          "title": "GC pause, max per collection",
+          "description": "Max because the GC pause timer does not guarantee buckets.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "seconds",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "max by (application) (jvm_gc_pause_seconds_max{application=~\"${app:pipe}\"})",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "jvm_gc_pause_seconds_max",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} max pause",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 96,
+            "y": 14,
+            "w": 96,
+            "h": 14,
+            "i": 24
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "jvm_gc_overhead",
+          "type": "line",
+          "title": "GC time ratio",
+          "description": "Seconds spent in GC pauses per second. Sum across all collectors/causes.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "percent-1",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (application) (rate(jvm_gc_pause_seconds_sum{application=~\"${app:pipe}\"}[5m]))",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "jvm_gc_pause_seconds_sum",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} GC time ratio",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 28,
+            "w": 96,
+            "h": 14,
+            "i": 25
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "jvm_gc_alloc",
+          "type": "line",
+          "title": "Allocation rate",
+          "description": "Young-gen allocation rate. Rising with GC pauses points at per-request allocation, not a leak.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "custom",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null,
+            "unit_custom": "B/s"
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (application) (rate(jvm_gc_memory_allocated_bytes_total{application=~\"${app:pipe}\"}[5m]))",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "jvm_gc_memory_allocated_bytes_total",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} allocated",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 96,
+            "y": 28,
+            "w": 96,
+            "h": 14,
+            "i": 26
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "db_pool",
+          "type": "line",
+          "title": "Database connection pool",
+          "description": "Pending near max with growing acquire time means the pool is the bottleneck; timeouts are the hard failure.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "none",
+            "decimals": 0,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "max by (application) (hikaricp_connections_active{application=~\"${app:pipe}\"})",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "hikaricp_connections_active",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} in use",
+                "query_label": ""
+              }
+            },
+            {
+              "query": "max by (application) (hikaricp_connections_idle{application=~\"${app:pipe}\"})",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "hikaricp_connections_idle",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} idle",
+                "query_label": ""
+              }
+            },
+            {
+              "query": "max by (application) (hikaricp_connections_max{application=~\"${app:pipe}\"})",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "hikaricp_connections_max",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} pool max",
+                "query_label": ""
+              }
+            },
+            {
+              "query": "max by (application) (hikaricp_connections_pending{application=~\"${app:pipe}\"})",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "hikaricp_connections_pending",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} pending",
+                "query_label": ""
+              }
+            },
+            {
+              "query": "sum by (application) (rate(hikaricp_connections_timeout_total{application=~\"${app:pipe}\"}[5m]))",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "hikaricp_connections_timeout_total",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} timeouts/s",
+                "query_label": ""
+              }
             }
           ],
           "layout": {
@@ -1262,7 +1567,225 @@
             "y": 42,
             "w": 96,
             "h": 14,
-            "i": 19
+            "i": 27
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "db_pool_acquire",
+          "type": "line",
+          "title": "Pool acquire latency",
+          "description": "Mean connection acquisition time; rises before active connections do.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "seconds",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (application) (rate(hikaricp_connections_acquire_seconds_sum{application=~\"${app:pipe}\"}[5m])) / clamp_min(sum by (application) (rate(hikaricp_connections_acquire_seconds_count{application=~\"${app:pipe}\"}[5m])), 0.000001)",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "hikaricp_connections_acquire_seconds_sum",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} mean acquire",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 96,
+            "y": 42,
+            "w": 96,
+            "h": 14,
+            "i": 28
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "process_cpu",
+          "type": "line",
+          "title": "Process CPU",
+          "description": "process_cpu_usage is already a fraction of the whole machine (0-1), not of one core.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "percent-1",
+            "decimals": 2,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "avg by (application) (process_cpu_usage{application=~\"${app:pipe}\"})",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "process_cpu_usage",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} process",
+                "query_label": ""
+              }
+            },
+            {
+              "query": "avg by (application) (system_cpu_usage{application=~\"${app:pipe}\"})",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "system_cpu_usage",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} system",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 56,
+            "w": 96,
+            "h": 14,
+            "i": 29
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "process_fds",
+          "type": "line",
+          "title": "Open file descriptors",
+          "description": "Steady growth means a descriptor leak.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "none",
+            "decimals": 0,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (application) (process_files_open_files{application=~\"${app:pipe}\"})",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "process_files_open_files",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} open FDs",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 96,
+            "y": 56,
+            "w": 96,
+            "h": 14,
+            "i": 30
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": "option = {};"
+        },
+        {
+          "id": "process_uptime",
+          "type": "line",
+          "title": "Uptime",
+          "description": "A sawtooth here means restarts.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "bottom",
+            "unit": "seconds",
+            "decimals": 0,
+            "base_map": null,
+            "map_view": null
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "max by (application) (process_uptime_seconds{application=~\"${app:pipe}\"})",
+              "vrlFunctionQuery": "",
+              "customQuery": true,
+              "fields": {
+                "stream": "process_uptime_seconds",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{application} uptime",
+                "query_label": ""
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 70,
+            "w": 96,
+            "h": 14,
+            "i": 31
           },
           "htmlContent": "",
           "markdownContent": "",
@@ -1274,7 +1797,6 @@
   "variables": {
     "list": [
       {
-        "scope": "global",
         "type": "custom",
         "name": "app",
         "label": "Environment",
@@ -1294,9 +1816,8 @@
         ],
         "multiSelect": true,
         "hideOnDashboard": false,
-        "selectAllValueForMultiSelect": "first",
-        "customMultiSelectValue": [],
-        "escapeSingleQuotes": true
+        "escapeSingleQuotes": true,
+        "scope": "global"
       }
     ],
     "showDynamicFilters": true
