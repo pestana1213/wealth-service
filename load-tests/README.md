@@ -118,26 +118,26 @@ touches production data. The k6 workload is a suspended `CronJob` in
 `apps/wealth-loadtest` of the `golias-homelab` repository, pointed at a separate
 `wealth_loadtest` database on the existing PostgreSQL pod.
 
-The deployment mounts these files from a `wealth-loadtest-scripts` ConfigMap,
-which is generated rather than committed, so these scripts stay the single
-source of truth. Regenerate it after changing anything here:
+These scripts stay the single source of truth. The homelab repo gets them as a
+generated ConfigMap, `apps/wealth-loadtest/scripts-configmap.yaml`, which the
+pipeline regenerates and commits on every push, so it is never stale. To
+regenerate it yourself, which needs no cluster access and no `kubectl`:
 
 ```bash
-kubectl create configmap wealth-loadtest-scripts \
-  --from-file=wealth-service.js=wealth-service.js \
-  --from-file=config.js=lib/config.js \
-  --from-file=api.js=lib/api.js \
-  --from-file=workload.js=lib/workload.js \
-  --from-file=uuid.js=lib/uuid.js \
-  -n wealth-loadtest --dry-run=client -o yaml | kubectl apply -f -
+./render-configmap.py > \
+  ~/Desktop/Projects/golias-homelab/apps/wealth-loadtest/scripts-configmap.yaml
 ```
 
-`--from-file` flattens the paths, so the ConfigMap volume remaps the library keys
-back into `lib/` for the relative imports to resolve.
+ConfigMap keys cannot contain `/`, so `lib/api.js` is stored under the key
+`api.js` and the CronJob's volume remaps the keys back into `lib/` for the
+relative imports to resolve. `render-configmap.py` refuses to emit content that
+a YAML block scalar could not round-trip, so the mounted files are
+byte-identical to the ones in git.
 
-Then run it on demand:
+Then run it from whichever machine has `kubectl`:
 
 ```bash
+kubectl apply -k apps/wealth-loadtest/
 kubectl create job --from=cronjob/wealth-loadtest-k6 k6-run -n wealth-loadtest
 kubectl logs -f job/k6-run -n wealth-loadtest
 ```

@@ -93,6 +93,22 @@ jobs:
 
           git diff
 
+          # The load-test scripts are owned by this repository and mounted into
+          # the k6 CronJob from a generated ConfigMap, so regenerate it here
+          # rather than letting it drift from the scripts that were just tested.
+          SCRIPTS_CONFIGMAP="apps/wealth-loadtest/scripts-configmap.yaml"
+
+          if [ -d apps/wealth-loadtest ]; then
+            # Invoked via python3 and by absolute path: the shell is sitting in
+            # the homelab clone, and the executable bit does not survive a
+            # checkout on every platform.
+            python3 "$GITHUB_WORKSPACE/load-tests/render-configmap.py" > "$SCRIPTS_CONFIGMAP"
+            CHANGED="$CHANGED $SCRIPTS_CONFIGMAP"
+            echo "Regenerated $SCRIPTS_CONFIGMAP"
+          else
+            echo "::warning::apps/wealth-loadtest absent, ConfigMap not regenerated"
+          fi
+
           # shellcheck disable=SC2086
           git add $CHANGED
 

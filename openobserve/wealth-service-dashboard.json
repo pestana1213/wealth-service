@@ -28,7 +28,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "sum by (uri, status) (rate(http_server_requests_seconds_count[1m]))",
+              "query": "sum by (uri, status, application) (rate(http_server_requests_seconds_count{application=~\"$app\"}[1m]))",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -45,7 +45,7 @@
                 }
               },
               "config": {
-                "promql_legend": "{{uri}} {{status}}",
+                "promql_legend": "{{application}} {{uri}} {{status}}",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -79,7 +79,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "sum(rate(http_server_requests_seconds_count{status=~\"5..\"}[1m])) / clamp_min(sum(rate(http_server_requests_seconds_count[1m])), 0.000001)",
+              "query": "sum by (application) (rate(http_server_requests_seconds_count{application=~\"$app\", status=~\"5..\"}[1m])) / clamp_min(sum by (application) (rate(http_server_requests_seconds_count{application=~\"$app\"}[1m])), 0.000001)",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -96,7 +96,7 @@
                 }
               },
               "config": {
-                "promql_legend": "5xx ratio",
+                "promql_legend": "{{application}} 5xx ratio",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -130,7 +130,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "sum(rate(http_server_requests_seconds_sum[1m])) / clamp_min(sum(rate(http_server_requests_seconds_count[1m])), 0.000001)",
+              "query": "sum by (application) (rate(http_server_requests_seconds_sum{application=~\"$app\"}[1m])) / clamp_min(sum by (application) (rate(http_server_requests_seconds_count{application=~\"$app\"}[1m])), 0.000001)",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -147,13 +147,13 @@
                 }
               },
               "config": {
-                "promql_legend": "mean",
+                "promql_legend": "{{application}} mean",
                 "query_label": ""
               },
               "queryType": "promql"
             },
             {
-              "query": "max(http_server_requests_seconds_max)",
+              "query": "max by (application) (http_server_requests_seconds_max{application=~\"$app\"})",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -170,7 +170,7 @@
                 }
               },
               "config": {
-                "promql_legend": "max",
+                "promql_legend": "{{application}} max",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -204,7 +204,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket[1m])))",
+              "query": "histogram_quantile(0.95, sum by (le, application) (rate(http_server_requests_seconds_bucket{application=~\"$app\"}[1m])))",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -221,13 +221,13 @@
                 }
               },
               "config": {
-                "promql_legend": "p95",
+                "promql_legend": "{{application}} p95",
                 "query_label": ""
               },
               "queryType": "promql"
             },
             {
-              "query": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket[1m])))",
+              "query": "histogram_quantile(0.99, sum by (le, application) (rate(http_server_requests_seconds_bucket{application=~\"$app\"}[1m])))",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -244,7 +244,7 @@
                 }
               },
               "config": {
-                "promql_legend": "p99",
+                "promql_legend": "{{application}} p99",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -278,7 +278,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "sum by (result) (rate(wealth_dashboard_duration_seconds_sum[1m])) / clamp_min(sum by (result) (rate(wealth_dashboard_duration_seconds_count[1m])), 0.000001)",
+              "query": "sum by (result, application) (rate(wealth_dashboard_duration_seconds_sum{application=~\"$app\"}[1m])) / clamp_min(sum by (result, application) (rate(wealth_dashboard_duration_seconds_count{application=~\"$app\"}[1m])), 0.000001)",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -295,7 +295,7 @@
                 }
               },
               "config": {
-                "promql_legend": "{{result}}",
+                "promql_legend": "{{application}} {{result}}",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -329,7 +329,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "sum by (reason) (rate(wealth_dashboard_failures_total[1m]))",
+              "query": "sum by (reason, application) (rate(wealth_dashboard_failures_total{application=~\"$app\"}[1m]))",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -346,7 +346,7 @@
                 }
               },
               "config": {
-                "promql_legend": "{{reason}}",
+                "promql_legend": "{{application}} {{reason}}",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -386,7 +386,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "sum by (outcome) (rate(wealth_transactions_total[1m]))",
+              "query": "sum by (outcome, application) (rate(wealth_transactions_total{application=~\"$app\"}[1m]))",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -403,7 +403,7 @@
                 }
               },
               "config": {
-                "promql_legend": "{{outcome}}",
+                "promql_legend": "{{application}} {{outcome}}",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -437,7 +437,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "sum(rate(wealth_transactions_total{outcome=\"conflict\"}[1m])) / clamp_min(sum(rate(wealth_transactions_total[1m])), 0.000001)",
+              "query": "sum by (application) (rate(wealth_transactions_total{application=~\"$app\", outcome=\"conflict\"}[1m])) / clamp_min(sum by (application) (rate(wealth_transactions_total{application=~\"$app\"}[1m])), 0.000001)",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -454,7 +454,7 @@
                 }
               },
               "config": {
-                "promql_legend": "conflict ratio",
+                "promql_legend": "{{application}} conflict ratio",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -488,7 +488,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "sum by (outcome) (rate(wealth_transaction_duration_seconds_sum[1m])) / clamp_min(sum by (outcome) (rate(wealth_transaction_duration_seconds_count[1m])), 0.000001)",
+              "query": "sum by (outcome, application) (rate(wealth_transaction_duration_seconds_sum{application=~\"$app\"}[1m])) / clamp_min(sum by (outcome, application) (rate(wealth_transaction_duration_seconds_count{application=~\"$app\"}[1m])), 0.000001)",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -505,13 +505,13 @@
                 }
               },
               "config": {
-                "promql_legend": "{{outcome}} mean",
+                "promql_legend": "{{application}} {{outcome}} mean",
                 "query_label": ""
               },
               "queryType": "promql"
             },
             {
-              "query": "max by (outcome) (wealth_transaction_duration_seconds_max)",
+              "query": "max by (outcome, application) (wealth_transaction_duration_seconds_max{application=~\"$app\"})",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -528,7 +528,7 @@
                 }
               },
               "config": {
-                "promql_legend": "{{outcome}} max",
+                "promql_legend": "{{application}} {{outcome}} max",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -562,7 +562,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "histogram_quantile(0.95, sum by (le, outcome) (rate(wealth_transaction_duration_seconds_bucket[1m])))",
+              "query": "histogram_quantile(0.95, sum by (le, outcome, application) (rate(wealth_transaction_duration_seconds_bucket{application=~\"$app\"}[1m])))",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -579,7 +579,7 @@
                 }
               },
               "config": {
-                "promql_legend": "p95 {{outcome}}",
+                "promql_legend": "{{application}} p95 {{outcome}}",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -613,7 +613,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "sum(rate(http_server_requests_seconds_sum{uri=\"/transactions\"}[1m])) / clamp_min(sum(rate(http_server_requests_seconds_count{uri=\"/transactions\"}[1m])), 0.000001)",
+              "query": "sum by (application) (rate(http_server_requests_seconds_sum{application=~\"$app\", uri=\"/transactions\"}[1m])) / clamp_min(sum by (application) (rate(http_server_requests_seconds_count{application=~\"$app\", uri=\"/transactions\"}[1m])), 0.000001)",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -630,13 +630,13 @@
                 }
               },
               "config": {
-                "promql_legend": "mean",
+                "promql_legend": "{{application}} mean",
                 "query_label": ""
               },
               "queryType": "promql"
             },
             {
-              "query": "max(http_server_requests_seconds_max{uri=\"/transactions\"})",
+              "query": "max by (application) (http_server_requests_seconds_max{application=~\"$app\", uri=\"/transactions\"})",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -653,7 +653,7 @@
                 }
               },
               "config": {
-                "promql_legend": "max",
+                "promql_legend": "{{application}} max",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -687,7 +687,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "sum by (status) (rate(http_server_requests_seconds_count{uri=\"/transactions\"}[1m]))",
+              "query": "sum by (status, application) (rate(http_server_requests_seconds_count{application=~\"$app\", uri=\"/transactions\"}[1m]))",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -704,7 +704,7 @@
                 }
               },
               "config": {
-                "promql_legend": "HTTP {{status}}",
+                "promql_legend": "{{application}} HTTP {{status}}",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -744,7 +744,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "sum(jvm_memory_used_bytes{area=\"heap\"})",
+              "query": "sum by (application) (jvm_memory_used_bytes{application=~\"$app\", area=\"heap\"})",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -761,13 +761,13 @@
                 }
               },
               "config": {
-                "promql_legend": "heap used",
+                "promql_legend": "{{application}} heap used",
                 "query_label": ""
               },
               "queryType": "promql"
             },
             {
-              "query": "sum(jvm_memory_max_bytes{area=\"heap\"})",
+              "query": "sum by (application) (jvm_memory_max_bytes{application=~\"$app\", area=\"heap\"})",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -784,7 +784,7 @@
                 }
               },
               "config": {
-                "promql_legend": "heap max",
+                "promql_legend": "{{application}} heap max",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -818,7 +818,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "max(jvm_threads_live_threads)",
+              "query": "max by (application) (jvm_threads_live_threads{application=~\"$app\"})",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -835,13 +835,13 @@
                 }
               },
               "config": {
-                "promql_legend": "threads live",
+                "promql_legend": "{{application}} threads live",
                 "query_label": ""
               },
               "queryType": "promql"
             },
             {
-              "query": "max(jvm_threads_daemon_threads)",
+              "query": "max by (application) (jvm_threads_daemon_threads{application=~\"$app\"})",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -858,7 +858,7 @@
                 }
               },
               "config": {
-                "promql_legend": "daemon",
+                "promql_legend": "{{application}} daemon",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -892,7 +892,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "max(jvm_gc_pause_seconds_max)",
+              "query": "max by (application) (jvm_gc_pause_seconds_max{application=~\"$app\"})",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -909,7 +909,7 @@
                 }
               },
               "config": {
-                "promql_legend": "max pause",
+                "promql_legend": "{{application}} max pause",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -943,7 +943,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "avg(rate(jvm_gc_pause_seconds_sum[1m]))",
+              "query": "avg by (application) (rate(jvm_gc_pause_seconds_sum{application=~\"$app\"}[1m]))",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -960,13 +960,13 @@
                 }
               },
               "config": {
-                "promql_legend": "GC time ratio",
+                "promql_legend": "{{application}} GC time ratio",
                 "query_label": ""
               },
               "queryType": "promql"
             },
             {
-              "query": "sum(rate(jvm_gc_memory_allocated_bytes_total[1m]))",
+              "query": "sum by (application) (rate(jvm_gc_memory_allocated_bytes_total{application=~\"$app\"}[1m]))",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -983,7 +983,7 @@
                 }
               },
               "config": {
-                "promql_legend": "B/s allocated",
+                "promql_legend": "{{application}} B/s allocated",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -1017,7 +1017,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "max(hikaricp_connections_active)",
+              "query": "max by (application) (hikaricp_connections_active{application=~\"$app\"})",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -1034,13 +1034,13 @@
                 }
               },
               "config": {
-                "promql_legend": "in use",
+                "promql_legend": "{{application}} in use",
                 "query_label": ""
               },
               "queryType": "promql"
             },
             {
-              "query": "max(hikaricp_connections_max)",
+              "query": "max by (application) (hikaricp_connections_max{application=~\"$app\"})",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -1057,13 +1057,13 @@
                 }
               },
               "config": {
-                "promql_legend": "pool max",
+                "promql_legend": "{{application}} pool max",
                 "query_label": ""
               },
               "queryType": "promql"
             },
             {
-              "query": "max(hikaricp_connections_pending)",
+              "query": "max by (application) (hikaricp_connections_pending{application=~\"$app\"})",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -1080,13 +1080,13 @@
                 }
               },
               "config": {
-                "promql_legend": "pending",
+                "promql_legend": "{{application}} pending",
                 "query_label": ""
               },
               "queryType": "promql"
             },
             {
-              "query": "sum(rate(hikaricp_connections_timeout_total[1m]))",
+              "query": "sum by (application) (rate(hikaricp_connections_timeout_total{application=~\"$app\"}[1m]))",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -1103,7 +1103,7 @@
                 }
               },
               "config": {
-                "promql_legend": "timeouts/s",
+                "promql_legend": "{{application}} timeouts/s",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -1137,7 +1137,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "sum(rate(hikaricp_connections_acquire_seconds_sum[1m])) / clamp_min(sum(rate(hikaricp_connections_acquire_seconds_count[1m])), 0.000001)",
+              "query": "sum by (application) (rate(hikaricp_connections_acquire_seconds_sum{application=~\"$app\"}[1m])) / clamp_min(sum by (application) (rate(hikaricp_connections_acquire_seconds_count{application=~\"$app\"}[1m])), 0.000001)",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -1154,7 +1154,7 @@
                 }
               },
               "config": {
-                "promql_legend": "mean acquire",
+                "promql_legend": "{{application}} mean acquire",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -1188,7 +1188,7 @@
           "queryType": "promql",
           "queries": [
             {
-              "query": "avg(process_cpu_usage)",
+              "query": "avg by (application) (process_cpu_usage{application=~\"$app\"})",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -1205,13 +1205,13 @@
                 }
               },
               "config": {
-                "promql_legend": "CPU",
+                "promql_legend": "{{application}} CPU",
                 "query_label": ""
               },
               "queryType": "promql"
             },
             {
-              "query": "sum(process_files_open_files)",
+              "query": "sum by (application) (process_files_open_files{application=~\"$app\"})",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -1228,13 +1228,13 @@
                 }
               },
               "config": {
-                "promql_legend": "open FDs",
+                "promql_legend": "{{application}} open FDs",
                 "query_label": ""
               },
               "queryType": "promql"
             },
             {
-              "query": "max(process_uptime_seconds)",
+              "query": "max by (application) (process_uptime_seconds{application=~\"$app\"})",
               "vrlFunctionQuery": "",
               "customQuery": true,
               "fields": {
@@ -1251,7 +1251,7 @@
                 }
               },
               "config": {
-                "promql_legend": "uptime s",
+                "promql_legend": "{{application}} uptime s",
                 "query_label": ""
               },
               "queryType": "promql"
@@ -1272,7 +1272,39 @@
     }
   ],
   "variables": {
-    "list": [],
+    "list": [
+      {
+        "scope": "global",
+        "type": "custom",
+        "name": "app",
+        "label": "Environment",
+        "query_data": {
+          "stream_type": "",
+          "stream": "",
+          "field": "",
+          "max_record_size": null,
+          "filter": []
+        },
+        "value": "",
+        "options": [
+          {
+            "label": "Production",
+            "value": "wealth-service",
+            "selected": true
+          },
+          {
+            "label": "Load test",
+            "value": "wealth-service-loadtest",
+            "selected": false
+          }
+        ],
+        "multiSelect": true,
+        "hideOnDashboard": false,
+        "selectAllValueForMultiSelect": "first",
+        "customMultiSelectValue": [],
+        "escapeSingleQuotes": true
+      }
+    ],
     "showDynamicFilters": true
   },
   "defaultDatetimeDuration": {

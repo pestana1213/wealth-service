@@ -20,8 +20,45 @@ In OpenObserve: **Dashboards -> Import** and select the JSON file.
 | Transactions | Are writes landing, and how much contention is being lost? |
 | JVM, pool and process | Is the process itself running out of anything? |
 
-There are no template variables. This dashboard is scoped to a single service
-instance, so there is nothing to filter on.
+There is one template variable, `app` (label **Environment**), with two options:
+`Production` (`wealth-service`) and `Load test` (`wealth-service-loadtest`).
+It is multi-select, so selecting both is how you compare them.
+
+## Telling a load run apart from real traffic
+
+Both deployments run this same image, so the only thing that distinguishes them
+is the `application` label. It comes from one line:
+
+```properties
+management.metrics.tags.application=${spring.application.name}
+```
+
+Every series carries it, which the homelab `wealth-loadtest` Deployment sets to
+`wealth-service-loadtest` through `SPRING_APPLICATION_NAME`. Without that
+override both report `application="wealth-service"` and nothing on the dashboard
+can tell a load test from production.
+
+Every panel query therefore does two things, and the second one is the easy
+mistake:
+
+```promql
+sum by (uri, status, application) (
+  rate(http_server_requests_seconds_count{application=~"$app"}[1m])
+)
+```
+
+The `{application=~"$app"}` selector chooses which data to show. Adding
+`application` to the **`by` clause** is just as important, because a `by` clause
+*replaces* the label set rather than adding to it. Without it, selecting both
+environments adds a load run to real traffic and plots the total as if it were
+production, with nothing on screen saying otherwise. Every legend carries
+`{{application}}` so the lines stay distinguishable when both are selected.
+
+The load-test ServiceMonitor is applied by the kustomization, so its series are
+remote-written to OpenObserve alongside production and share its storage and
+3-day retention. That is deliberate: it is the only way to see pool saturation,
+GC pause and thread counts under load, which the k6 summary cannot show. Select
+`Load test` at the top of the dashboard to isolate it.
 
 ## Panel layout is a 192-column grid
 
