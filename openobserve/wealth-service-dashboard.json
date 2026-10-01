@@ -1278,13 +1278,7 @@
         "type": "custom",
         "name": "app",
         "label": "Environment",
-        "query_data": {
-          "stream_type": "",
-          "stream": "",
-          "field": "",
-          "max_record_size": null,
-          "filter": []
-        },
+        "query_data": null,
         "value": "",
         "options": [
           {
