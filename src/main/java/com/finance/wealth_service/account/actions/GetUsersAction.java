@@ -7,11 +7,11 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 @Service
-public class GetUsers {
+public class GetUsersAction {
 
     private final UserRepository userRepository;
 
-    public GetUsers(UserRepository userRepository) {
+    public GetUsersAction(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
 

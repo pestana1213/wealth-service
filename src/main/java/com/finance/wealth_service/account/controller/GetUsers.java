@@ -1,5 +1,6 @@
 package com.finance.wealth_service.account.controller;
 
+import com.finance.wealth_service.account.actions.GetUsersAction;
 import com.finance.wealth_service.account.entity.User;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
@@ -13,9 +14,9 @@ import java.util.List;
 @Tag(name = "Users")
 public class GetUsers {
 
-    private final GetUsers getUsers;
+    private final GetUsersAction getUsers;
 
-    public GetUsers(GetUsers getUsers) {
+    public GetUsers(GetUsersAction getUsers) {
         this.getUsers = getUsers;
     }
 
