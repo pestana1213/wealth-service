@@ -108,6 +108,34 @@ class ListTransactionsIntegrationTests {
     }
 
     @Test
+    void namesTheAccountsWhenBothSidesShareTheSameBucket() {
+        createTransaction.execute(
+                request(TransactionType.TRANSFER, accountId, otherAccountId, bucketId, bucketId));
+
+        List<TransactionDTO> history = listTransactions.listTransactions(userId);
+
+        assertThat(history).hasSize(1);
+        assertThat(history.getFirst().source().name()).isEqualTo("Moey");
+        assertThat(history.getFirst().source().type()).isEqualTo(ACCOUNT);
+        assertThat(history.getFirst().destination().name()).isEqualTo("XTB");
+        assertThat(history.getFirst().destination().type()).isEqualTo(ACCOUNT);
+    }
+
+    @Test
+    void namesTheAccountAndTheBucketWhenMoneyIsAllocated() {
+        createTransaction.execute(
+                request(TransactionType.TRANSFER, accountId, accountId, null, otherBucketId));
+
+        List<TransactionDTO> history = listTransactions.listTransactions(userId);
+
+        assertThat(history).hasSize(1);
+        assertThat(history.getFirst().source().name()).isEqualTo("Moey");
+        assertThat(history.getFirst().source().type()).isEqualTo(ACCOUNT);
+        assertThat(history.getFirst().destination().name()).isEqualTo("Carro");
+        assertThat(history.getFirst().destination().type()).isEqualTo(BUCKET);
+    }
+
+    @Test
     void ordersSameDayMovementsNewestInsertedFirst() {
         var older = createTransaction.execute(request(TransactionType.EXPENSE, accountId, null, null, null));
         var newer = createTransaction.execute(request(TransactionType.EXPENSE, accountId, null, null, null));

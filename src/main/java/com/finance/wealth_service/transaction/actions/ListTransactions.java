@@ -7,6 +7,7 @@ import com.finance.wealth_service.transaction.dto.MovementAcc;
 import com.finance.wealth_service.transaction.dto.MovementSource;
 import com.finance.wealth_service.transaction.dto.TransactionDTO;
 import com.finance.wealth_service.transaction.entity.Transaction;
+import com.finance.wealth_service.transaction.entity.TransactionType;
 import com.finance.wealth_service.transaction.repository.TransactionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,16 +57,24 @@ public class ListTransactions {
         Map<UUID, MovementAcc> accounts = accounts(transactions);
         Map<UUID, MovementAcc> buckets = buckets(transactions);
 
-        return transactions.stream().map(t -> new TransactionDTO(
+        return transactions.stream()
+                .map(t -> toDto(t, accounts, buckets))
+                .toList();
+    }
+
+    private TransactionDTO toDto(Transaction t, Map<UUID, MovementAcc> accounts, Map<UUID, MovementAcc> buckets) {
+        boolean betweenBuckets = t.getType() != TransactionType.TRANSFER
+                || !Objects.equals(t.getSourceBucketId(), t.getDestinationBucketId());
+        return new TransactionDTO(
                 t.getId(),
-                endpoint(t.getSourceBucketId(), buckets, t.getProviderAccountId(), accounts),
-                endpoint(t.getDestinationBucketId(), buckets, t.getDestinationAccountId(), accounts),
+                endpoint(t.getSourceBucketId(), buckets, t.getProviderAccountId(), accounts, betweenBuckets),
+                endpoint(t.getDestinationBucketId(), buckets, t.getDestinationAccountId(), accounts, betweenBuckets),
                 t.getTransactionAmount(),
                 t.getType(),
                 t.getCategory(),
                 t.getOccurredAt(),
                 t.getDescription()
-        )).toList();
+        );
     }
 
     private Map<UUID, MovementAcc> accounts(List<Transaction> transactions) {
@@ -91,8 +100,9 @@ public class ListTransactions {
     }
 
     private MovementAcc endpoint(UUID bucketId, Map<UUID, MovementAcc> buckets,
-                                 UUID accountId, Map<UUID, MovementAcc> accounts) {
-        if (bucketId != null) {
+                                 UUID accountId, Map<UUID, MovementAcc> accounts,
+                                 boolean preferBucket) {
+        if (preferBucket && bucketId != null) {
             return resolve(buckets, bucketId, BUCKET);
         }
         return accountId == null ? null : resolve(accounts, accountId, ACCOUNT);
