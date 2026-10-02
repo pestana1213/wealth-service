@@ -17,4 +17,7 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
 
     @Query(value = "SELECT * FROM accounts WHERE id = :id AND user_id = :userId FOR UPDATE NOWAIT", nativeQuery = true)
     Optional<Account> findByIdAndUserIdForUpdate(@Param("id") UUID id, @Param("userId") UUID userId);
+
+    @Query(value = "SELECT * FROM accounts WHERE id IN :id", nativeQuery = true)
+    List<Account> findAllByIds(@Param("id") List<UUID> ids);
 }

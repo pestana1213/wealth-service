@@ -14,4 +14,7 @@ public interface BucketRepository extends JpaRepository<Bucket, UUID> {
 
     @Query(value = "SELECT * FROM buckets WHERE id = :id AND user_id = :userId FOR UPDATE NOWAIT", nativeQuery = true)
     Optional<Bucket> findByIdAndUserIdForUpdate(@Param("id") UUID id, @Param("userId") UUID userId);
+
+    @Query(value = "SELECT * FROM buckets WHERE id IN :id", nativeQuery = true)
+    List<Bucket> findAllByIds(@Param("id") List<UUID> ids);
 }

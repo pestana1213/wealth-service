@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import java.util.UUID;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 
 @Entity
@@ -51,6 +52,10 @@ public class Transaction {
 
     private String description;
 
+    @NotNull
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
     protected Transaction() {
     }
 
@@ -65,6 +70,7 @@ public class Transaction {
         this.category = category;
         this.occurredAt = occurredAt;
         this.description = description;
+        this.createdAt = Instant.now();
     }
 
     public UUID getId() {
@@ -109,5 +115,9 @@ public class Transaction {
 
     public String getDescription() {
         return description;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
     }
 }

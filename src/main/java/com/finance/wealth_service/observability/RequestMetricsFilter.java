@@ -37,7 +37,7 @@ public class RequestMetricsFilter extends OncePerRequestFilter {
             registry.counter("wealth.http.requests", "method", method, "route", route, "status", status).increment();
             sample.stop(Timer.builder("wealth.http.request.duration")
                     .tag("method", method).tag("route", route).tag("status", status).register(registry));
-            log.info("http_request method={} route={} status={} duration_ms={}", method, route, status,
+            log.debug("http_request method={} route={} status={} duration_ms={}", method, route, status,
                     (System.nanoTime() - started) / 1_000_000);
         }
     }
