@@ -1,5 +1,6 @@
 package com.finance.wealth_service.account;
 
+import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.entity.User;
 import com.finance.wealth_service.account.repository.AccountRepository;
 import com.finance.wealth_service.account.repository.UserRepository;
@@ -16,6 +17,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -121,5 +123,52 @@ class AccountEndpointsTests {
         mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"João\"}"))
                 .andExpect(status().isBadRequest());
         assertThat(users.count()).isEqualTo(before);
+    }
+
+    @Test
+    void updatesAccountNameAndType() throws Exception {
+        UUID userId = users.saveAndFlush(new User("João", UUID.randomUUID() + "@example.com")).getId();
+        Account account = accounts.saveAndFlush(new Account(userId, "Bank", new java.math.BigDecimal("10.00"), AccountType.SAVINGS));
+        mvc.perform(patch("/accounts/" + account.getId()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\" Broker \",\"type\":\"INVESTMENT\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Broker"))
+                .andExpect(jsonPath("$.type").value("INVESTMENT"))
+                .andExpect(jsonPath("$.currentAmount").value(10));
+        Account updated = accounts.findById(account.getId()).orElseThrow();
+        assertThat(updated.getName()).isEqualTo("Broker");
+        assertThat(updated.getType()).isEqualTo(AccountType.INVESTMENT);
+    }
+
+    @Test
+    void partialUpdateLeavesOmittedFieldsUnchanged() throws Exception {
+        UUID userId = users.saveAndFlush(new User("João", UUID.randomUUID() + "@example.com")).getId();
+        Account account = accounts.saveAndFlush(new Account(userId, "Bank", java.math.BigDecimal.ZERO, AccountType.SAVINGS));
+        mvc.perform(patch("/accounts/" + account.getId()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"INVESTMENT\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Bank"))
+                .andExpect(jsonPath("$.type").value("INVESTMENT"));
+    }
+
+    @Test
+    void rejectsUpdateOfUnknownAccount() throws Exception {
+        mvc.perform(patch("/accounts/" + UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Bank\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void rejectsInvalidUpdateRequests() throws Exception {
+        UUID userId = users.saveAndFlush(new User("João", UUID.randomUUID() + "@example.com")).getId();
+        Account account = accounts.saveAndFlush(new Account(userId, "Bank", java.math.BigDecimal.ZERO, AccountType.SAVINGS));
+        for (String body : new String[]{
+                "{\"name\":\"   \"}",
+                "{\"name\":\"" + "a".repeat(256) + "\"}",
+                "{\"type\":\"CHECKING\"}"}) {
+            mvc.perform(patch("/accounts/" + account.getId()).contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        assertThat(accounts.findById(account.getId()).orElseThrow().getName()).isEqualTo("Bank");
     }
 }

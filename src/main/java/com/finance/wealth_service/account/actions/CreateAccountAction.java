@@ -1,5 +1,6 @@
 package com.finance.wealth_service.account.actions;
 
+import com.finance.wealth_service.account.AccountType;
 import com.finance.wealth_service.account.dto.CreateAccountRequest;
 import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.repository.AccountRepository;
@@ -22,10 +23,14 @@ public class CreateAccountAction {
 
     @Transactional
     public Account execute(CreateAccountRequest request) {
+        AccountType type = AccountType.SAVINGS;
         if (!users.existsById(request.userId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
         BigDecimal amount = request.currentAmount() == null ? BigDecimal.ZERO : request.currentAmount();
-        return accounts.save(new Account(request.userId(), request.name().strip(), amount));
+        if (request.type() != null) {
+            type = request.type();
+        }
+        return accounts.save(new Account(request.userId(), request.name().strip(), amount, type));
     }
 }

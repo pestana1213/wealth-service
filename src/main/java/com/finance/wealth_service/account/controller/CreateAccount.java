@@ -24,6 +24,7 @@ public class CreateAccount {
     @ResponseStatus(HttpStatus.CREATED)
     public CreateAccountResponse create(@Valid @RequestBody CreateAccountRequest request) {
         Account account = action.execute(request);
-        return new CreateAccountResponse(account.getId(), account.getUserId(), account.getName(), account.getCurrentAmount());
+        return new CreateAccountResponse(account.getId(), account.getUserId(), account.getName(),
+                account.getCurrentAmount(), account.getType());
     }
 }
