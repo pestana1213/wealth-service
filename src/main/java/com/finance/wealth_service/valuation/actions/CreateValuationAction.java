@@ -33,6 +33,7 @@ public class CreateValuationAction {
         if (valuations.existsByAccountIdAndValuedAt(accountId, request.valuedAt())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A valuation is already recorded for this date");
         }
-        return valuations.saveAndFlush(new AccountValuation(accountId, request.value(), request.valuedAt()));
+        return valuations.saveAndFlush(new AccountValuation(accountId, request.value(),
+                account.getCurrentAmount(),request.valuedAt()));
     }
 }

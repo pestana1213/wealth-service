@@ -24,6 +24,10 @@ public class AccountValuation {
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal value;
 
+    @PositiveOrZero
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal investedMoney; //same as the current amount on the account
+
     @NotNull
     @Column(name = "valued_at", nullable = false)
     private LocalDate valuedAt;
@@ -35,10 +39,11 @@ public class AccountValuation {
     protected AccountValuation() {
     }
 
-    public AccountValuation(UUID accountId, BigDecimal value, LocalDate valuedAt) {
+    public AccountValuation(UUID accountId, BigDecimal value, BigDecimal investedMoney, LocalDate valuedAt) {
         this.accountId = accountId;
         this.value = value.setScale(2, java.math.RoundingMode.UNNECESSARY);
         this.valuedAt = valuedAt;
+        this.investedMoney = investedMoney;
         this.createdAt = Instant.now();
     }
 
@@ -60,5 +65,9 @@ public class AccountValuation {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public BigDecimal getInvestedMoney() {
+        return investedMoney;
     }
 }
