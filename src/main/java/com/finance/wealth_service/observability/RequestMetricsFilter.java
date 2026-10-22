@@ -49,6 +49,7 @@ public class RequestMetricsFilter extends OncePerRequestFilter {
         if (uri.matches("/users/[0-9a-fA-F-]+/(accounts|buckets|goals)")) return "/users/{userId}/" + uri.substring(uri.lastIndexOf('/') + 1);
         if (uri.matches("/users/[0-9a-fA-F-]+")) return "/users/{userId}";
         if (uri.matches("/accounts/[0-9a-fA-F-]+")) return "/accounts/{accountId}";
+        if (uri.matches("/accounts/[0-9a-fA-F-]+/valuations")) return "/accounts/{accountId}/valuations";
         return uri;
     }
 }
