@@ -37,7 +37,7 @@ public class ReverseTransactionAction {
         if (transactions.existsByReversalOf(transactionId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Transaction was already reversed");
         }
-        return createTransaction.execute(mirrorOf(original), transactionId);
+        return createTransaction.execute(new NewTransaction(mirrorOf(original), transactionId));
     }
 
     /**

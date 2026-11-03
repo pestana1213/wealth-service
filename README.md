@@ -50,6 +50,11 @@ campos UUID, sem associações JPA; as chaves estrangeiras mantêm a integridade
 referencial na base de dados. Existem endpoints de criação de utilizadores,
 contas, buckets e objetivos. Os fluxos `INCOME`, `EXPENSE` e `TRANSFER` atualizam as contas e buckets
 afetados e gravam a transação no mesmo `TransactionTemplate`.
+Mover dinheiro acontece num único sítio, o `Ledger`: é ele que adquire os locks,
+aplica a aritmética e grava o histórico, tudo dentro da mesma transação de base
+de dados. O `CreateTransactionAction` valida o pedido, chama o `Ledger` e traduz
+o resultado em estado HTTP, fora da transação. Uma reversão passa pelo mesmo
+`Ledger`, com a ligação à transação original num `NewTransaction`.
 As referências de origem e destino devem pertencer ao utilizador da transação.
 As contas e buckets são carregados com `FOR UPDATE NOWAIT`, primeiro contas
 e depois buckets, ordenados por UUID e sem bloquear o mesmo registo duas vezes.
