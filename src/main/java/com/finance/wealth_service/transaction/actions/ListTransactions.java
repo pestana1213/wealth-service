@@ -73,7 +73,8 @@ public class ListTransactions {
                 t.getType(),
                 t.getCategory(),
                 t.getOccurredAt(),
-                t.getDescription()
+                t.getDescription(),
+                t.getReversalOf()
         );
     }
 

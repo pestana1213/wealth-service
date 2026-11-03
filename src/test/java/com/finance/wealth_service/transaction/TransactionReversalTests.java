@@ -128,6 +128,17 @@ class TransactionReversalTests {
     }
 
     @Test
+    void historyTellsTheReversalApartFromTheOriginal() throws Exception {
+        UUID original = income();
+        mvc.perform(post("/transactions/" + original + "/reversal")).andExpect(status().isCreated());
+        mvc.perform(get("/transactions").param("userId", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].reversalOf").value(original.toString()))
+                .andExpect(jsonPath("$[1].transactionId").value(original.toString()))
+                .andExpect(jsonPath("$[1].reversalOf").value((Object) null));
+    }
+
+    @Test
     void refusesToReverseTheSameTransactionTwice() throws Exception {
         UUID original = income();
         mvc.perform(post("/transactions/" + original + "/reversal")).andExpect(status().isCreated());

@@ -15,5 +15,6 @@ public record TransactionDTO(
         TransactionType type,
         TransactionCategory category,
         LocalDate occurredAt,
-        String description
+        String description,
+        UUID reversalOf
 ) {}
