@@ -65,6 +65,15 @@ Ainda não existem consultas do dashboard. Persistir uma `Transaction`
 diretamente no repository não atualiza saldos; usar a action.
 A base de dados já valida montantes positivos e a estrutura das transferências.
 
+`POST /transactions` valida o pedido antes de tocar em saldos: `userId`, `type`,
+`category`, `occurredAt` e `transactionAmount` são obrigatórios, o montante é
+positivo com até 17 algarismos inteiros e duas casas decimais, `occurredAt` não
+pode ser futuro e `description` está limitada a 255 caracteres. Dados inválidos
+devolvem `400 Bad Request` em `application/problem+json`, com os campos em causa
+na propriedade `errors`. As referências de conta e bucket não são anotadas: quais
+podem ser nulas depende do `type`, pelo que essa regra continua na action e na
+restrição `transaction_accounts`.
+
 O PostgreSQL é configurado em `application.properties`; o Hibernate valida
 o esquema criado pelo Liquibase. Java 25 é necessário.
 
@@ -151,3 +160,34 @@ algarismos inteiros e duas casas decimais. A data é opcional, em formato
 
 Ambos devolvem `400 Bad Request` para dados inválidos e `404 Not Found`
 quando o utilizador ou bucket associado não existe.
+
+## Corrigir e retirar buckets, objetivos e transações
+
+`PATCH /buckets/{bucketId}` — altera o nome e/ou corrige o montante alocado.
+Campos omitidos ficam inalterados. Corrigir o montante é uma correção, não um
+movimento: não cria transação nem mexe nos saldos das contas, pelo que o total
+poupado não muda e só a divisão entre alocado e cash se ajusta. O montante é
+não negativo, com até 17 algarismos inteiros e duas casas decimais.
+
+`DELETE /buckets/{bucketId}` — arquiva o bucket e devolve `204 No Content`. A
+linha é mantida: transações e objetivos referenciam `buckets(id)` e o histórico
+tem de continuar a nomear a finalidade onde o dinheiro esteve. Um bucket
+arquivado sai do dashboard e das listagens, leva os seus objetivos com ele e é
+recusado em novas transações. O bucket tem de estar a zero; com dinheiro
+alocado devolve `409 Conflict`, porque esse saldo desapareceria do total
+alocado. Arquivar é idempotente e não existe endpoint para desarquivar.
+
+`PATCH /goals/{goalId}` — altera o montante pretendido e/ou a data. O bucket é
+fixo: apontar um objetivo a outro bucket é outro objetivo.
+`DELETE /goals/{goalId}` — devolve `204 No Content` e remove a linha; nada
+referencia um objetivo. O bucket e a sua alocação não são afetados.
+
+`POST /transactions/{transactionId}/reversal` — devolve `201 Created` com uma
+transação compensatória que desfaz o efeito nos saldos e liga à original em
+`reversalOf`. A original é mantida, logo o histórico mostra o erro e a correção.
+A reversão troca origem e destino nos dois lados, o que transforma uma entrada
+numa saída e uma transferência na transferência oposta; é datada de hoje e
+passa pelo mesmo `CreateTransactionAction`, com os mesmos locks e validações.
+Reverter duas vezes a mesma transação, ou reverter uma reversão, devolve
+`409 Conflict`; um índice único em `reversal_of` garante isso mesmo em corrida.
+Uma transação cujo bucket já foi arquivado não pode ser revertida.

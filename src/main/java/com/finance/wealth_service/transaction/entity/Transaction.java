@@ -56,10 +56,19 @@ public class Transaction {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "reversal_of", updatable = false)
+    private UUID reversalOf;
+
     protected Transaction() {
     }
 
     public Transaction(UUID userId, UUID providerAccountId, UUID destinationAccountId, UUID sourceBucketId, UUID destinationBucketId, BigDecimal transactionAmount, TransactionType type, TransactionCategory category, LocalDate occurredAt, String description) {
+        this(userId, providerAccountId, destinationAccountId, sourceBucketId, destinationBucketId,
+                transactionAmount, type, category, occurredAt, description, null);
+    }
+
+    public Transaction(UUID userId, UUID providerAccountId, UUID destinationAccountId, UUID sourceBucketId, UUID destinationBucketId, BigDecimal transactionAmount, TransactionType type, TransactionCategory category, LocalDate occurredAt, String description, UUID reversalOf) {
+        this.reversalOf = reversalOf;
         this.userId = userId;
         this.providerAccountId = providerAccountId;
         this.destinationAccountId = destinationAccountId;
@@ -75,6 +84,10 @@ public class Transaction {
 
     public UUID getId() {
         return id;
+    }
+
+    public UUID getReversalOf() {
+        return reversalOf;
     }
 
     public UUID getUserId() {

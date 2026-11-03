@@ -43,6 +43,15 @@ public class CreateTransactionAction {
     }
 
     public Transaction execute(CreateTransactionRequest request) {
+        return execute(request, null);
+    }
+
+    /**
+     * @param reversalOf the transaction this one compensates, or {@code null} for an
+     *                   ordinary movement. Not part of the request body: a client
+     *                   cannot forge the link by posting to {@code /transactions}.
+     */
+    public Transaction execute(CreateTransactionRequest request, UUID reversalOf) {
         long started = System.nanoTime();
         if (!validate(request)) {
             metrics.recordTransaction("invalid", System.nanoTime() - started);
@@ -93,7 +102,7 @@ public class CreateTransactionAction {
                 return transactions.saveAndFlush(new Transaction(
                         request.userId(), request.providerAccountId(), request.destinationAccountId(),
                         request.sourceBucketId(), request.destinationBucketId(), request.transactionAmount(),
-                        request.type(), request.category(), request.occurredAt(), request.description()));
+                        request.type(), request.category(), request.occurredAt(), request.description(), reversalOf));
             });
             metrics.recordTransaction("created", System.nanoTime() - started);
             return created;

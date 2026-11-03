@@ -42,6 +42,14 @@ public class Goal {
         return bucketId;
     }
 
+    public void setGoalAmount(BigDecimal goalAmount) {
+        this.goalAmount = goalAmount;
+    }
+
+    public void setGoalObjective(LocalDate goalObjective) {
+        this.goalObjective = goalObjective;
+    }
+
     public BigDecimal getGoalAmount() {
         return goalAmount;
     }

@@ -30,6 +30,10 @@ public class Bucket {
     @Column(name = "current_amount", nullable = false, precision = 19, scale = 2)
     private BigDecimal currentAmount = new BigDecimal("0.00");
 
+    /** An archived bucket keeps its history but is hidden from the dashboard and refused by new transactions. */
+    @Column(nullable = false)
+    private boolean archived = false;
+
     protected Bucket() {
     }
 
@@ -57,6 +61,18 @@ public class Bucket {
 
     public BigDecimal getCurrentAmount() {
         return currentAmount;
+    }
+
+    public boolean isArchived() {
+        return archived;
+    }
+
+    public void setName(String name) {
+        this.name = Objects.requireNonNull(name, "name is required");
+    }
+
+    public void archive() {
+        this.archived = true;
     }
 
     public void setCurrentAmount(BigDecimal currentAmount) {

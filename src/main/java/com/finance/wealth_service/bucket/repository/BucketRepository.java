@@ -10,9 +10,10 @@ import java.util.List;
 
 public interface BucketRepository extends JpaRepository<Bucket, UUID> {
 
-    List<Bucket> findByUserIdOrderByName(UUID userId);
+    /** Active buckets only: an archived bucket stays out of the dashboard and the listings. */
+    List<Bucket> findByUserIdAndArchivedFalseOrderByName(UUID userId);
 
-    @Query(value = "SELECT * FROM buckets WHERE id = :id AND user_id = :userId FOR UPDATE NOWAIT", nativeQuery = true)
+    @Query(value = "SELECT * FROM buckets WHERE id = :id AND user_id = :userId AND archived = false FOR UPDATE NOWAIT", nativeQuery = true)
     Optional<Bucket> findByIdAndUserIdForUpdate(@Param("id") UUID id, @Param("userId") UUID userId);
 
     @Query(value = "SELECT * FROM buckets WHERE id IN :id", nativeQuery = true)

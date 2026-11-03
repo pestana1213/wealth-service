@@ -29,6 +29,6 @@ public class CreateTransaction {
                 transaction.getDestinationAccountId(), transaction.getSourceBucketId(),
                 transaction.getDestinationBucketId(), transaction.getTransactionAmount(),
                 transaction.getType(), transaction.getCategory(), transaction.getOccurredAt(),
-                transaction.getDescription());
+                transaction.getDescription(), transaction.getReversalOf());
     }
 }

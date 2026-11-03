@@ -1,5 +1,6 @@
 package com.finance.wealth_service.visualization.actions;
 
+import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.repository.AccountRepository;
 import com.finance.wealth_service.bucket.entity.Bucket;
 import com.finance.wealth_service.bucket.repository.BucketRepository;
@@ -11,6 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -34,12 +37,13 @@ public class GetDashboardAction {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
         try {
-            var accountViews = accounts.findByUserIdOrderByName(userId).stream()
+            List<AccountView> accountViews = accounts.findByUserIdOrderByName(userId).stream()
                     .map(a -> new AccountView(a.getId(), a.getName(), a.getCurrentAmount())).toList();
-            var bucketViews = buckets.findByUserIdOrderByName(userId).stream()
+            List<Bucket> activeBuckets = buckets.findByUserIdAndArchivedFalseOrderByName(userId);
+            List<BucketView> bucketViews = activeBuckets.stream()
                     .map(b -> new BucketView(b.getId(), b.getName(), b.getCurrentAmount())).toList();
-            var amounts = buckets.findByUserIdOrderByName(userId).stream().collect(Collectors.toMap(Bucket::getId, Bucket::getCurrentAmount));
-            var goalViews = goals.findByUserId(userId).stream()
+            Map<UUID, BigDecimal> amounts = activeBuckets.stream().collect(Collectors.toMap(Bucket::getId, Bucket::getCurrentAmount));
+            List<GoalView> goalViews = goals.findByUserId(userId).stream()
                     .map(g -> new GoalView(g.getId(), g.getBucketId(), g.getGoalAmount(), g.getGoalObjective(), amounts.getOrDefault(g.getBucketId(), BigDecimal.ZERO))).toList();
             BigDecimal total = accountViews.stream().map(AccountView::currentAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
             BigDecimal allocated = bucketViews.stream().map(BucketView::currentAmount).reduce(BigDecimal.ZERO, BigDecimal::add);

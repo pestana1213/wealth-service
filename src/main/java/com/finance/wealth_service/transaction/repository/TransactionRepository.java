@@ -15,4 +15,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
             order by t.occurredAt desc, t.createdAt desc, t.id desc
             """)
     List<Transaction> findHistory(@Param("userId") UUID userId);
+
+    boolean existsByReversalOf(UUID reversalOf);
 }
