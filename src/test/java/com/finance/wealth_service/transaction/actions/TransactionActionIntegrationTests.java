@@ -7,6 +7,7 @@ import com.finance.wealth_service.account.repository.UserRepository;
 import com.finance.wealth_service.bucket.entity.Bucket;
 import com.finance.wealth_service.bucket.repository.BucketRepository;
 import com.finance.wealth_service.transaction.dto.CreateTransactionRequest;
+import com.finance.wealth_service.transaction.entity.Transaction;
 import com.finance.wealth_service.transaction.entity.TransactionCategory;
 import com.finance.wealth_service.transaction.entity.TransactionType;
 import com.finance.wealth_service.transaction.repository.TransactionRepository;
@@ -15,6 +16,8 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.support.TransactionTemplate;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -74,7 +77,7 @@ class TransactionActionIntegrationTests {
 
     @Test
     void commitsAccountBucketAndHistoryTogether() {
-        var transaction = action.execute(request(bucketId, TransactionCategory.HOUSE));
+        Transaction transaction = action.execute(request(bucketId, TransactionCategory.HOUSE));
         assertThat(transactions.findById(transaction.getId())).isPresent();
         assertThat(accounts.findById(accountId).orElseThrow().getCurrentAmount()).isEqualByComparingTo("130.25");
         assertThat(buckets.findById(bucketId).orElseThrow().getCurrentAmount()).isEqualByComparingTo("50.25");
@@ -138,23 +141,54 @@ class TransactionActionIntegrationTests {
     }
 
     @Test
-    void expenseDebitsAccountAndOptionalBucketWithoutCheckingSufficientFunds() {
-        var transaction = action.execute(movement(TransactionType.EXPENSE, accountId, null,
+    void expenseDebitsBothTheAccountAndTheBucket() {
+        action.execute(request(bucketId, TransactionCategory.HOUSE));
+        Transaction transaction = action.execute(movement(TransactionType.EXPENSE, accountId, null,
                 bucketId, null, TransactionCategory.HOUSE));
         assertThat(transactions.findById(transaction.getId())).isPresent();
-        assertBalances("69.75", "0", "-10.25", "0");
-        action.execute(movement(TransactionType.EXPENSE, accountId, null, null, null, TransactionCategory.OTHER));
-        assertBalances("39.50", "0", "-10.25", "0");
+        assertBalances("100.00", "0", "20", "0");
         assertThat(transactionCount()).isEqualTo(2);
+    }
+
+    /** An account can be overdrawn: a credit card or a debit balance is a real account. */
+    @Test
+    void expenseDrivesTheAccountNegativeWithoutCheckingSufficientFunds() {
+        for (int movements = 0; movements < 4; movements++) {
+            action.execute(movement(TransactionType.EXPENSE, accountId, null, null, null, TransactionCategory.OTHER));
+        }
+        assertBalances("-21.00", "0", "20", "0");
+        assertThat(transactionCount()).isEqualTo(4);
+    }
+
+    /** A bucket is a share of money that exists, so it cannot go below zero. */
+    @Test
+    void expenseRefusesToDriveTheBucketNegative() {
+        assertThatThrownBy(() -> action.execute(movement(TransactionType.EXPENSE, accountId, null,
+                bucketId, null, TransactionCategory.HOUSE)))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        exception -> assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+        assertBalances("100", "0", "20", "0");
+        assertThat(transactionCount()).isZero();
     }
 
     @Test
     void transferMovesMoneyBetweenAccountsAndBuckets() {
-        var transaction = action.execute(movement(TransactionType.TRANSFER, accountId, otherAccountId,
+        action.execute(request(bucketId, TransactionCategory.HOUSE));
+        Transaction transaction = action.execute(movement(TransactionType.TRANSFER, accountId, otherAccountId,
                 bucketId, otherBucketId, TransactionCategory.INVESTMENT));
         assertThat(transactions.findById(transaction.getId())).isPresent();
-        assertBalances("69.75", "30.25", "-10.25", "30.25");
-        assertThat(transactionCount()).isEqualTo(1);
+        assertBalances("100.00", "30.25", "20", "30.25");
+        assertThat(transactionCount()).isEqualTo(2);
+    }
+
+    @Test
+    void transferRefusesToDriveTheSourceBucketNegative() {
+        assertThatThrownBy(() -> action.execute(movement(TransactionType.TRANSFER, accountId, otherAccountId,
+                bucketId, otherBucketId, TransactionCategory.INVESTMENT)))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        exception -> assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+        assertBalances("100", "0", "20", "0");
+        assertThat(transactionCount()).isZero();
     }
 
     @Test
@@ -232,7 +266,7 @@ class TransactionActionIntegrationTests {
         try (var client = java.net.http.HttpClient.newHttpClient()) {
             for (CreateTransactionRequest request : new CreateTransactionRequest[]{
                     request(bucketId, TransactionCategory.HOUSE),
-                    movement(TransactionType.EXPENSE, accountId, null, bucketId, null, TransactionCategory.HOUSE),
+                    movement(TransactionType.EXPENSE, accountId, null, null, null, TransactionCategory.HOUSE),
                     movement(TransactionType.TRANSFER, accountId, otherAccountId, bucketId, otherBucketId, TransactionCategory.OTHER)}) {
                 var response = client.send(java.net.http.HttpRequest.newBuilder(
                                 java.net.URI.create("http://localhost:" + port + "/transactions"))
@@ -246,9 +280,8 @@ class TransactionActionIntegrationTests {
                     case TRANSFER -> new BigDecimal("69.75");
                 };
                 BigDecimal expectedHouse = switch (request.type()) {
-                    case INCOME -> new BigDecimal("50.25");
-                    case EXPENSE -> new BigDecimal("20.00");
-                    case TRANSFER -> new BigDecimal("-10.25");
+                    case INCOME, EXPENSE -> new BigDecimal("50.25");
+                    case TRANSFER -> new BigDecimal("20.00");
                 };
                 // Read through JDBC after the HTTP response, bypassing the JPA persistence context.
                 assertThat(jdbc.queryForObject("select current_amount from accounts where id = ?", BigDecimal.class, accountId))

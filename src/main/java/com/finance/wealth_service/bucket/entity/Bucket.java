@@ -27,6 +27,7 @@ public class Bucket {
     private String name;
 
     @NotNull
+    @PositiveOrZero
     @Column(name = "current_amount", nullable = false, precision = 19, scale = 2)
     private BigDecimal currentAmount = new BigDecimal("0.00");
 

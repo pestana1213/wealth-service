@@ -24,6 +24,11 @@ import java.util.stream.Stream;
  * transaction: the balances it touches and the history row it writes commit
  * together or not at all.
  *
+ * <p>An account may be overdrawn: a debit balance or a credit card is a real
+ * account state, so an expense is allowed to take one below zero. A bucket may
+ * not, because it is a share of money that exists in the accounts; a movement
+ * that would take one below zero is refused with a 400.
+ *
  * <p>Every balance change is written with an explicit {@code saveAndFlush}, so the
  * {@code UPDATE} is issued at the line that changes the balance instead of being
  * left to dirty checking at commit. Flushing is not committing: a later failure
@@ -89,8 +94,7 @@ public class Ledger {
         Account source = locked.get(request.providerAccountId());
         Account destination = locked.get(request.destinationAccountId());
         if (source != null) {
-            source.setCurrentAmount(debit(source.getCurrentAmount(), request.transactionAmount(),
-                    "Final Value from source account can't be less then 0"));
+            source.setCurrentAmount(source.getCurrentAmount().subtract(request.transactionAmount()));
             accounts.saveAndFlush(source);
         }
         if (destination != null) {
@@ -106,8 +110,12 @@ public class Ledger {
         Bucket source = locked.get(request.sourceBucketId());
         Bucket destination = locked.get(request.destinationBucketId());
         if (source != null) {
-            source.setCurrentAmount(debit(source.getCurrentAmount(), request.transactionAmount(),
-                    "Final Value from source bucket can't be less then 0"));
+            BigDecimal left = source.getCurrentAmount().subtract(request.transactionAmount());
+            if (left.compareTo(BigDecimal.ZERO) < 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Final Value from source bucket can't be less then 0");
+            }
+            source.setCurrentAmount(left);
             buckets.saveAndFlush(source);
         }
         if (destination != null) {
@@ -116,11 +124,4 @@ public class Ledger {
         }
     }
 
-    private BigDecimal debit(BigDecimal balance, BigDecimal amount, String refusal) {
-        BigDecimal result = balance.subtract(amount);
-        if (result.compareTo(BigDecimal.ZERO) < 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, refusal);
-        }
-        return result;
-    }
 }

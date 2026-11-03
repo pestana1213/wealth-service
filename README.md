@@ -63,11 +63,18 @@ sem esperar pelo lock da linha nem repetir automaticamente. `@Version` permanece
 como proteção adicional contra atualizações concorrentes.
 `EXPENSE` subtrai da conta e do bucket de origem opcional; `TRANSFER` subtrai
 da origem e soma ao destino. Uma conta ou bucket presente nos dois lados
-mantém o saldo. Não é verificado saldo suficiente; débitos podem produzir
-saldos negativos. As restrições de montante existentes na entidade e na base
-de dados continuam aplicáveis.
-Ainda não existem consultas do dashboard. Persistir uma `Transaction`
-diretamente no repository não atualiza saldos; usar a action.
+mantém o saldo.
+
+Saldo suficiente é verificado nos buckets e não nas contas. Uma conta pode
+ficar negativa: um saldo devedor ou um cartão de crédito é um estado real de
+uma conta, e uma despesa pode levá-la abaixo de zero. Um bucket não pode, por
+ser uma parte de dinheiro que existe nas contas; um movimento que o levasse
+abaixo de zero devolve `400 Bad Request` e não altera nada. A regra está no
+`Ledger`, na anotação `@PositiveOrZero` da entidade e na restrição
+`buckets_amount_not_negative`; as contas não têm restrição equivalente.
+
+Persistir uma `Transaction` diretamente no repository não atualiza saldos;
+usar a action.
 A base de dados já valida montantes positivos e a estrutura das transferências.
 
 `POST /transactions` valida o pedido antes de tocar em saldos: `userId`, `type`,

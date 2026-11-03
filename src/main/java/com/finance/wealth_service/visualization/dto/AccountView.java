@@ -1,4 +1,10 @@
 package com.finance.wealth_service.visualization.dto;
 import java.math.BigDecimal;
 import java.util.UUID;
-public record AccountView(UUID id, String name, BigDecimal currentAmount) {}
+/**
+ * @param currentAmount the money contributed to the account
+ * @param marketValue   the latest recorded value, or null when none was recorded
+ * @param investedMoney what had gone in when that value was recorded, or null with it
+ */
+public record AccountView(UUID id, String name, BigDecimal currentAmount,
+                          BigDecimal marketValue, BigDecimal investedMoney) {}
