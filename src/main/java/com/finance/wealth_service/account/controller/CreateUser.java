@@ -24,6 +24,6 @@ public class CreateUser {
     @ResponseStatus(HttpStatus.CREATED)
     public CreateUserResponse create(@Valid @RequestBody CreateUserRequest request) {
         User user = action.execute(request);
-        return new CreateUserResponse(user.getId(), user.getName(), user.getEmail());
+        return new CreateUserResponse(user.getId(), "", "");
     }
 }

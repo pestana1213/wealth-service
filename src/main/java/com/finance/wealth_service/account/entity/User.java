@@ -12,33 +12,18 @@ public class User {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @NotBlank
-    @Column(nullable = false)
-    private String name;
+    private String issuer;
 
-    @NotBlank
-    @Email
-    @Size(max = 254)
-    @Column(length = 254)
-    private String email;
+    private String subject;
 
-    protected User() {
-    }
-
-    public User(String name, String email) {
-        this.name = name;
-        this.email = java.util.Objects.requireNonNull(email).strip().toLowerCase(java.util.Locale.ROOT);
+    public User() {
     }
 
     public UUID getId() {
         return id;
     }
 
-    public String getName() {
-        return name;
-    }
+    public String getIssuer() { return issuer;}
 
-    public String getEmail() {
-        return email;
-    }
+    public String getSubject() {return subject;}
 }

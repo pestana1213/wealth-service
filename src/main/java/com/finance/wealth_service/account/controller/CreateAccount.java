@@ -4,9 +4,15 @@ import com.finance.wealth_service.account.actions.CreateAccountAction;
 import com.finance.wealth_service.account.dto.CreateAccountRequest;
 import com.finance.wealth_service.account.dto.CreateAccountResponse;
 import com.finance.wealth_service.account.entity.Account;
+import com.finance.wealth_service.auth.AuthenticatedUser;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.GetMapping;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -27,4 +33,10 @@ public class CreateAccount {
         return new CreateAccountResponse(account.getId(), account.getUserId(), account.getName(),
                 account.getCurrentAmount(), account.getType());
     }
+
+    @GetMapping("/whoami")
+    public AuthenticatedUser whoami(@AuthenticationPrincipal AuthenticatedUser user) {
+        return user;
+    }
+
 }

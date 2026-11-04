@@ -19,11 +19,11 @@ public class CreateUserAction {
 
     @Transactional
     public User execute(CreateUserRequest request) {
-        if (users.existsByEmailIgnoreCase(request.email())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered");
-        }
+        // if (users.existsByEmailIgnoreCase(request.email())) {
+        //     throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered");
+        // }
         try {
-            return users.saveAndFlush(new User(request.name().strip(), request.email()));
+            return users.saveAndFlush(new User());
         } catch (DataIntegrityViolationException exception) {
             for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
                 if (cause instanceof org.hibernate.exception.ConstraintViolationException violation
