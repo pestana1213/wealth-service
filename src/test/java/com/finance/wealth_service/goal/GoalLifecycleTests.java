@@ -43,7 +43,7 @@ class GoalLifecycleTests {
     @BeforeEach
     void setup() {
         mvc = MockMvcBuilders.webAppContextSetup(context).build();
-        userId = users.saveAndFlush(new User("Goals", UUID.randomUUID() + "@example.com")).getId();
+        userId = users.saveAndFlush(new User(null, null, "Goals", UUID.randomUUID() + "@example.com")).getId();
         UUID bucketId = buckets.saveAndFlush(new Bucket(userId, "House", new BigDecimal("20.00"))).getId();
         goalId = goals.saveAndFlush(new Goal(bucketId, new BigDecimal("50000.00"), LocalDate.of(2027, 12, 31))).getId();
     }

@@ -9,7 +9,6 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 public record CreateAccountRequest(
-        @NotNull UUID userId,
         @NotBlank @Size(max = 255) String name,
         @Digits(integer = 17, fraction = 2) BigDecimal currentAmount,
         AccountType type) {}

@@ -28,15 +28,11 @@ public class CreateAccount {
     @PostMapping("/accounts")
     @Operation(summary = "Create an account", description = "Creates an account with an optional initial balance.")
     @ResponseStatus(HttpStatus.CREATED)
-    public CreateAccountResponse create(@Valid @RequestBody CreateAccountRequest request) {
-        Account account = action.execute(request);
+    public CreateAccountResponse create(@AuthenticationPrincipal AuthenticatedUser user,
+                                        @Valid @RequestBody CreateAccountRequest request) {
+        Account account = action.execute(user, request);
         return new CreateAccountResponse(account.getId(), account.getUserId(), account.getName(),
                 account.getCurrentAmount(), account.getType());
-    }
-
-    @GetMapping("/whoami")
-    public AuthenticatedUser whoami(@AuthenticationPrincipal AuthenticatedUser user) {
-        return user;
     }
 
 }

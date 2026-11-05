@@ -11,10 +11,22 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 import tools.jackson.databind.ObjectMapper;
 import java.util.UUID;
+import com.finance.wealth_service.auth.AuthenticatedUser;
+import com.finance.wealth_service.auth.UserAuthentication;
+import com.finance.wealth_service.auth.UserInfoClient;
+import com.finance.wealth_service.auth.UserProfile;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import static org.mockito.Mockito.*;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -28,29 +40,95 @@ class AccountEndpointsTests {
     @Autowired UserRepository users;
     @Autowired AccountRepository accounts;
     @Autowired ObjectMapper mapper;
+    @MockitoBean UserInfoClient userInfo;
     MockMvc mvc;
 
     @BeforeEach
     void setup() {
-        mvc = MockMvcBuilders.webAppContextSetup(context).build();
+        mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+    }
+
+    static final String ISSUER = "https://issuer.test";
+
+    static RequestPostProcessor signedIn(String subject) {
+        Jwt jwt = Jwt.withTokenValue("token-" + subject).header("alg", "none")
+                .issuer(ISSUER).subject(subject).build();
+        return authentication(new UserAuthentication(new AuthenticatedUser(ISSUER, subject), jwt));
+    }
+
+    // Registration commits its own transaction, as it does in production, where
+    // nothing wraps the controller. The rows use random subjects and emails.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Test
+    void registersSignedInUserWithProfileFromIdentityProvider() throws Exception {
+        String subject = UUID.randomUUID().toString();
+        String email = subject + "@example.com";
+        when(userInfo.fetch("token-" + subject)).thenReturn(new UserProfile("João", email));
+        MvcResult result = mvc.perform(post("/users/me").with(signedIn(subject)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("João"))
+                .andExpect(jsonPath("$.email").value(email))
+                .andReturn();
+        UUID id = UUID.fromString(mapper.readTree(result.getResponse().getContentAsString()).get("id").asText());
+        User saved = users.findById(id).orElseThrow();
+        assertThat(saved.getIssuer()).isEqualTo(ISSUER);
+        assertThat(saved.getSubject()).isEqualTo(subject);
+    }
+
+    // Registration commits its own transaction, as it does in production, where
+    // nothing wraps the controller. The rows use random subjects and emails.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Test
+    void registersUserWithoutVerifiedEmail() throws Exception {
+        String subject = UUID.randomUUID().toString();
+        when(userInfo.fetch("token-" + subject)).thenReturn(new UserProfile("João", null));
+        mvc.perform(post("/users/me").with(signedIn(subject)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").doesNotExist());
+    }
+
+    // Registration commits its own transaction, as it does in production, where
+    // nothing wraps the controller. The rows use random subjects and emails.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Test
+    void registeringTwiceReturnsTheSameUserWithoutAskingTheIdentityProviderAgain() throws Exception {
+        String subject = UUID.randomUUID().toString();
+        when(userInfo.fetch("token-" + subject)).thenReturn(new UserProfile("João", subject + "@example.com"));
+        String first = mvc.perform(post("/users/me").with(signedIn(subject)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        long before = users.count();
+        mvc.perform(post("/users/me").with(signedIn(subject)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(mapper.readTree(first).get("id").asText()));
+        assertThat(users.count()).isEqualTo(before);
+        verify(userInfo, times(1)).fetch("token-" + subject);
+    }
+
+    // Registration commits its own transaction, as it does in production, where
+    // nothing wraps the controller. The rows use random subjects and emails.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Test
+    void rejectsEmailAlreadyRegisteredByAnotherIdentity() throws Exception {
+        String email = UUID.randomUUID() + "@example.com";
+        String first = UUID.randomUUID().toString();
+        String second = UUID.randomUUID().toString();
+        when(userInfo.fetch("token-" + first)).thenReturn(new UserProfile("Original", email));
+        when(userInfo.fetch("token-" + second)).thenReturn(new UserProfile("Other", email));
+        mvc.perform(post("/users/me").with(signedIn(first))).andExpect(status().isOk());
+        long before = users.count();
+        mvc.perform(post("/users/me").with(signedIn(second))).andExpect(status().isConflict());
+        assertThat(users.count()).isEqualTo(before);
     }
 
     @Test
-    void createsAndPersistsUser() throws Exception {
-        var result = mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"  João  \",\"email\":\" Joao@Example.com \"}"))
-                .andExpect(status().isCreated()).andExpect(jsonPath("$.name").value("João"))
-                .andExpect(jsonPath("$.email").value("joao@example.com"))
-                .andReturn();
-        UUID id = UUID.fromString(mapper.readTree(result.getResponse().getContentAsString()).get("id").asText());
-        users.flush();
-        assertThat(users.findById(id).orElseThrow().getName()).isEqualTo("João");
-        assertThat(users.findById(id).orElseThrow().getEmail()).isEqualTo("joao@example.com");
+    void registrationRequiresAToken() throws Exception {
+        mvc.perform(post("/users/me")).andExpect(status().isUnauthorized());
+        verifyNoInteractions(userInfo);
     }
 
     @Test
     void createsAndPersistsAccountWithInitialBalance() throws Exception {
-        UUID userId = users.saveAndFlush(new User("João", UUID.randomUUID() + "@example.com")).getId();
+        UUID userId = users.saveAndFlush(new User(null, null, "João", UUID.randomUUID() + "@example.com")).getId();
         var result = mvc.perform(post("/accounts").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"userId\":\"" + userId + "\",\"name\":\" Bank \",\"currentAmount\":55000.25}"))
                 .andExpect(status().isCreated())
@@ -64,7 +142,7 @@ class AccountEndpointsTests {
 
     @Test
     void defaultsInitialBalanceToZero() throws Exception {
-        UUID userId = users.saveAndFlush(new User("João", UUID.randomUUID() + "@example.com")).getId();
+        UUID userId = users.saveAndFlush(new User(null, null, "João", UUID.randomUUID() + "@example.com")).getId();
         mvc.perform(post("/accounts").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"userId\":\"" + userId + "\",\"name\":\"Bank\"}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.currentAmount").value(0));
@@ -83,10 +161,6 @@ class AccountEndpointsTests {
     void rejectsInvalidRequests() throws Exception {
         long usersBefore = users.count();
         long accountsBefore = accounts.count();
-        for (String body : new String[]{"{}", "{\"name\":\"   \"}", "{\"name\":\"" + "a".repeat(256) + "\"}"}) {
-            mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON).content(body))
-                    .andExpect(status().isBadRequest());
-        }
         String userId = UUID.randomUUID().toString();
         for (String body : new String[]{
                 "{\"name\":\"Bank\"}",
@@ -102,32 +176,8 @@ class AccountEndpointsTests {
     }
 
     @Test
-    void rejectsDuplicateEmailIgnoringCase() throws Exception {
-        String email = UUID.randomUUID() + "@example.com";
-        users.saveAndFlush(new User("Original", email));
-        long before = users.count();
-        mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Other\",\"email\":\"" + email.toUpperCase(java.util.Locale.ROOT) + "\"}"))
-                .andExpect(status().isConflict());
-        assertThat(users.count()).isEqualTo(before);
-    }
-
-    @Test
-    void rejectsMissingOrInvalidEmail() throws Exception {
-        long before = users.count();
-        for (String email : new String[]{"null", "\"\"", "\"   \"", "\"invalid\"", "\"" + "a".repeat(250) + "@example.com\""}) {
-            mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"name\":\"João\",\"email\":" + email + "}"))
-                    .andExpect(status().isBadRequest());
-        }
-        mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"João\"}"))
-                .andExpect(status().isBadRequest());
-        assertThat(users.count()).isEqualTo(before);
-    }
-
-    @Test
     void updatesAccountNameAndType() throws Exception {
-        UUID userId = users.saveAndFlush(new User("João", UUID.randomUUID() + "@example.com")).getId();
+        UUID userId = users.saveAndFlush(new User(null, null, "João", UUID.randomUUID() + "@example.com")).getId();
         Account account = accounts.saveAndFlush(new Account(userId, "Bank", new java.math.BigDecimal("10.00"), AccountType.SAVINGS));
         mvc.perform(patch("/accounts/" + account.getId()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\" Broker \",\"type\":\"INVESTMENT\"}"))
@@ -142,7 +192,7 @@ class AccountEndpointsTests {
 
     @Test
     void partialUpdateLeavesOmittedFieldsUnchanged() throws Exception {
-        UUID userId = users.saveAndFlush(new User("João", UUID.randomUUID() + "@example.com")).getId();
+        UUID userId = users.saveAndFlush(new User(null, null, "João", UUID.randomUUID() + "@example.com")).getId();
         Account account = accounts.saveAndFlush(new Account(userId, "Bank", java.math.BigDecimal.ZERO, AccountType.SAVINGS));
         mvc.perform(patch("/accounts/" + account.getId()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"INVESTMENT\"}"))
@@ -160,7 +210,7 @@ class AccountEndpointsTests {
 
     @Test
     void rejectsInvalidUpdateRequests() throws Exception {
-        UUID userId = users.saveAndFlush(new User("João", UUID.randomUUID() + "@example.com")).getId();
+        UUID userId = users.saveAndFlush(new User(null, null, "João", UUID.randomUUID() + "@example.com")).getId();
         Account account = accounts.saveAndFlush(new Account(userId, "Bank", java.math.BigDecimal.ZERO, AccountType.SAVINGS));
         for (String body : new String[]{
                 "{\"name\":\"   \"}",

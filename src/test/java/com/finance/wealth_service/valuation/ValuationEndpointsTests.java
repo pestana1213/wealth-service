@@ -39,7 +39,7 @@ class ValuationEndpointsTests {
     @BeforeEach
     void setup() {
         mvc = MockMvcBuilders.webAppContextSetup(context).build();
-        UUID userId = users.saveAndFlush(new User("João", UUID.randomUUID() + "@example.com")).getId();
+        UUID userId = users.saveAndFlush(new User(null, null, "João", UUID.randomUUID() + "@example.com")).getId();
         investmentId = accounts.saveAndFlush(new Account(userId, "Broker", new BigDecimal("1000.00"), AccountType.INVESTMENT)).getId();
         savingsId = accounts.saveAndFlush(new Account(userId, "Bank", BigDecimal.ZERO, AccountType.SAVINGS)).getId();
     }

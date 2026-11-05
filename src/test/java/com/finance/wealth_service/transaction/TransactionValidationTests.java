@@ -45,7 +45,7 @@ class TransactionValidationTests {
     @BeforeEach
     void setup() {
         mvc = MockMvcBuilders.webAppContextSetup(context).build();
-        userId = users.saveAndFlush(new User("Validation", UUID.randomUUID() + "@example.com")).getId();
+        userId = users.saveAndFlush(new User(null, null, "Validation", UUID.randomUUID() + "@example.com")).getId();
         accountId = accounts.saveAndFlush(new Account(userId, "Bank", new BigDecimal("100.00"))).getId();
         buckets.saveAndFlush(new Bucket(userId, "House", new BigDecimal("20.00")));
     }

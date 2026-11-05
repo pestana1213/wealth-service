@@ -50,7 +50,7 @@ class TransactionReversalTests {
     @BeforeEach
     void setup() {
         mvc = MockMvcBuilders.webAppContextSetup(context).build();
-        userId = users.saveAndFlush(new User("Reversal", UUID.randomUUID() + "@example.com")).getId();
+        userId = users.saveAndFlush(new User(null, null, "Reversal", UUID.randomUUID() + "@example.com")).getId();
         bankId = accounts.saveAndFlush(new Account(userId, "Bank", new BigDecimal("100.00"))).getId();
         brokerId = accounts.saveAndFlush(new Account(userId, "Broker", BigDecimal.ZERO)).getId();
         houseId = buckets.saveAndFlush(new Bucket(userId, "House", new BigDecimal("20.00"))).getId();

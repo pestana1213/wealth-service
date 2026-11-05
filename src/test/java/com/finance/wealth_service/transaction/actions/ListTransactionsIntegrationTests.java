@@ -48,7 +48,7 @@ class ListTransactionsIntegrationTests {
 
     @BeforeEach
     void setup() {
-        userId = users.saveAndFlush(new User("History", UUID.randomUUID() + "@example.com")).getId();
+        userId = users.saveAndFlush(new User(null, null, "History", UUID.randomUUID() + "@example.com")).getId();
         accountId = accounts.saveAndFlush(new Account(userId, "Moey", new BigDecimal("1000.00"))).getId();
         otherAccountId = accounts.saveAndFlush(new Account(userId, "XTB", new BigDecimal("1000.00"))).getId();
         bucketId = buckets.saveAndFlush(new Bucket(userId, "Casa", new BigDecimal("100.00"))).getId();

@@ -38,7 +38,7 @@ class BucketGoalEndpointsTests {
     }
 
     UUID createUser() {
-        return users.saveAndFlush(new User("João", UUID.randomUUID() + "@example.com")).getId();
+        return users.saveAndFlush(new User(null, null, "João", UUID.randomUUID() + "@example.com")).getId();
     }
 
     @Test

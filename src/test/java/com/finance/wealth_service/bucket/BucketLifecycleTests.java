@@ -48,7 +48,7 @@ class BucketLifecycleTests {
     @BeforeEach
     void setup() {
         mvc = MockMvcBuilders.webAppContextSetup(context).build();
-        userId = users.saveAndFlush(new User("Lifecycle", UUID.randomUUID() + "@example.com")).getId();
+        userId = users.saveAndFlush(new User(null, null, "Lifecycle", UUID.randomUUID() + "@example.com")).getId();
         accountId = accounts.saveAndFlush(new Account(userId, "Bank", new BigDecimal("100.00"))).getId();
         bucketId = buckets.saveAndFlush(new Bucket(userId, "House", new BigDecimal("20.00"))).getId();
     }

@@ -45,7 +45,7 @@ class TransactionActionIntegrationTests {
 
     @BeforeEach
     void setup() {
-        userId = users.saveAndFlush(new User("Income test", UUID.randomUUID() + "@example.com")).getId();
+        userId = users.saveAndFlush(new User(null, null, "Income test", UUID.randomUUID() + "@example.com")).getId();
         accountId = accounts.saveAndFlush(new Account(userId, "Bank", new BigDecimal("100.00"))).getId();
         otherAccountId = accounts.saveAndFlush(new Account(userId, "Broker")).getId();
         otherBucketId = buckets.saveAndFlush(new Bucket(userId, "ETF")).getId();
@@ -101,7 +101,7 @@ class TransactionActionIntegrationTests {
 
     @Test
     void foreignBucketDoesNotChangeBalance() {
-        User other = users.saveAndFlush(new User("Other", UUID.randomUUID() + "@example.com"));
+        User other = users.saveAndFlush(new User(null, null, "Other", UUID.randomUUID() + "@example.com"));
         Bucket foreign = buckets.saveAndFlush(new Bucket(other.getId(), "Other"));
         try {
             assertThatThrownBy(() -> action.execute(request(foreign.getId(), TransactionCategory.OTHER)))
@@ -232,7 +232,7 @@ class TransactionActionIntegrationTests {
 
     @Test
     void rejectsForeignAndMissingReferencesOnEitherSide() {
-        User other = users.saveAndFlush(new User("Foreign", UUID.randomUUID() + "@example.com"));
+        User other = users.saveAndFlush(new User(null, null, "Foreign", UUID.randomUUID() + "@example.com"));
         Account foreignAccount = accounts.saveAndFlush(new Account(other.getId(), "Foreign"));
         Bucket foreignBucket = buckets.saveAndFlush(new Bucket(other.getId(), "Foreign"));
         try {

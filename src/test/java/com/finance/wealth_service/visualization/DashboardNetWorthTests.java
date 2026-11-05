@@ -43,7 +43,7 @@ class DashboardNetWorthTests {
     @BeforeEach
     void setup() {
         mvc = MockMvcBuilders.webAppContextSetup(context).build();
-        userId = users.saveAndFlush(new User("Net worth", UUID.randomUUID() + "@example.com")).getId();
+        userId = users.saveAndFlush(new User(null, null, "Net worth", UUID.randomUUID() + "@example.com")).getId();
         bankId = accounts.saveAndFlush(new Account(userId, "Bank", new BigDecimal("100.00"))).getId();
         brokerId = accounts.saveAndFlush(
                 new Account(userId, "Broker", new BigDecimal("1000.00"), AccountType.INVESTMENT)).getId();
