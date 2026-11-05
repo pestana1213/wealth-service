@@ -58,7 +58,7 @@ class OwnershipTests {
         User owner = users.saveAndFlush(TestUsers.newUser("Owner"));
         User intruder = users.saveAndFlush(TestUsers.newUser("Intruder"));
         account = accounts.saveAndFlush(new Account(owner.getId(), "Broker", new BigDecimal("100.00"), AccountType.INVESTMENT));
-        bucket = buckets.saveAndFlush(new Bucket(owner.getId(), "House", BigDecimal.ZERO));
+        bucket = buckets.saveAndFlush(new Bucket(owner.getId(), account.getId(), "House", BigDecimal.ZERO));
         goal = goals.saveAndFlush(new Goal(bucket.getId(), new BigDecimal("1000.00"), null));
         transaction = transactions.saveAndFlush(new Transaction(owner.getId(), null, account.getId(), null, null,
                 new BigDecimal("10.00"), TransactionType.INCOME, TransactionCategory.OTHER, LocalDate.now(), "Salary"));
@@ -105,9 +105,9 @@ class OwnershipTests {
     void seesOnlyTheirOwnDataInListings() throws Exception {
         mvc.perform(get("/dashboard"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accounts", hasSize(0)))
-                .andExpect(jsonPath("$.buckets", hasSize(0)))
-                .andExpect(jsonPath("$.goals", hasSize(0)));
+                // Buckets and goals live inside the accounts, so none of them leak either.
+                .andExpect(jsonPath("$.accounts", hasSize(0)));
+        mvc.perform(get("/accounts")).andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(0)));
         mvc.perform(get("/transactions")).andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(0)));
     }
 }

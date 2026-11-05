@@ -7,6 +7,7 @@ import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.repository.AccountRepository;
 import com.finance.wealth_service.bucket.entity.Bucket;
 import com.finance.wealth_service.bucket.repository.BucketRepository;
+import com.finance.wealth_service.goal.entity.Goal;
 import com.finance.wealth_service.goal.repository.GoalRepository;
 import com.finance.wealth_service.account.port.UserPort;
 import com.finance.wealth_service.observability.WealthMetrics;
@@ -20,6 +21,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -51,46 +53,72 @@ public class GetDashboardAction {
 
     public DashboardResponse execute(AuthenticatedUser user) {
         long started = System.nanoTime();
-        Optional<UUID> found = users.findUserId(user);
-        if (found.isEmpty()) {
+        UUID userId = users.findUserId(user).orElseThrow(() -> {
             metrics.recordDashboardFailure("not_found");
             metrics.recordDashboard("not_found", System.nanoTime() - started);
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
-        }
-        UUID userId = found.get();
+            return new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        });
         try {
-            List<Account> userAccounts = accounts.findByUserIdOrderByName(userId);
-            Map<UUID, AccountValuation> latest = latestValuations(userAccounts);
-            List<AccountView> accountViews = userAccounts.stream().map(account -> {
-                AccountValuation valuation = latest.get(account.getId());
-                return new AccountView(account.getId(), account.getName(), account.getCurrentAmount(),
-                        valuation == null ? null : valuation.getValue(),
-                        valuation == null ? null : investedOf(valuation, account));
-            }).toList();
-            List<Bucket> activeBuckets = buckets.findByUserIdAndArchivedFalseOrderByName(userId);
-            List<BucketView> bucketViews = activeBuckets.stream()
-                    .map(b -> new BucketView(b.getId(), b.getName(), b.getCurrentAmount())).toList();
-            Map<UUID, BigDecimal> amounts = activeBuckets.stream().collect(Collectors.toMap(Bucket::getId, Bucket::getCurrentAmount));
-            List<GoalView> goalViews = goals.findByUserId(userId).stream()
-                    .map(g -> new GoalView(g.getId(), g.getBucketId(), g.getGoalAmount(), g.getGoalObjective(), amounts.getOrDefault(g.getBucketId(), BigDecimal.ZERO))).toList();
-            BigDecimal total = accountViews.stream().map(AccountView::currentAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-            BigDecimal allocated = bucketViews.stream().map(BucketView::currentAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-            // An account with no valuation is worth what it holds.
-            BigDecimal marketAmount = accountViews.stream()
-                    .map(view -> view.marketValue() == null ? view.currentAmount() : view.marketValue())
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-            // Only a valued account can show a gain; the others have nothing to compare to.
-            BigDecimal marketGain = accountViews.stream()
-                    .filter(view -> view.marketValue() != null)
-                    .map(view -> view.marketValue().subtract(view.investedMoney()))
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            DashboardResponse response = summarise(userId, accountViews(userId));
             metrics.recordDashboard("ok", System.nanoTime() - started);
-            return new DashboardResponse(userId, total, allocated, total.subtract(allocated),
-                    marketAmount, marketGain, accountViews, bucketViews, goalViews);
+            return response;
         } catch (RuntimeException exception) {
             metrics.recordDashboardFailure("error");
             metrics.recordDashboard("error", System.nanoTime() - started);
             throw exception;
         }
     }
+
+    private static <T> BigDecimal sum(List<T> items, Function<T, BigDecimal> amount) {
+        return items.stream().map(amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private static GoalView goalView(Goal goal) {
+        return new GoalView(goal.getId(), goal.getGoalAmount(), goal.getGoalObjective());
+    }
+
+    private AccountView accountView(Account account, AccountValuation valuation,
+                                    List<Bucket> accountBuckets, Map<UUID, List<Goal>> goalsByBucket) {
+        List<BucketView> bucketViews = accountBuckets.stream()
+                .map(b -> new BucketView(b.getId(), b.getName(), b.getCurrentAmount(),
+                        goalsByBucket.getOrDefault(b.getId(), List.of()).stream()
+                                .map(GetDashboardAction::goalView).toList()))
+                .toList();
+        BigDecimal allocated = sum(bucketViews, BucketView::currentAmount);
+        return new AccountView(account.getId(), account.getName(), account.getCurrentAmount(),
+                allocated, account.getCurrentAmount().subtract(allocated),
+                valuation == null ? null : valuation.getValue(),
+                valuation == null ? null : investedOf(valuation, account),
+                bucketViews);
+    }
+
+    public List<AccountView> accountViews(UUID userId) {
+        List<Account> userAccounts = accounts.findByUserIdOrderByName(userId);
+        Map<UUID, AccountValuation> latest = latestValuations(userAccounts);
+
+        List<Bucket> activeBuckets = buckets.findByUserIdAndArchivedFalseOrderByName(userId);
+        Map<UUID, List<Bucket>> bucketsByAccount = activeBuckets.stream()
+                .collect(Collectors.groupingBy(Bucket::getAccountId));
+        Map<UUID, List<Goal>> goalsByBucket = goals.findByUserId(userId).stream()
+                .collect(Collectors.groupingBy(Goal::getBucketId));
+
+        return userAccounts.stream().map(a -> accountView(a, latest.get(a.getId()),
+                bucketsByAccount.getOrDefault(a.getId(), List.of()), goalsByBucket)).toList();
+    }
+
+    public List<AccountView> accounts(AuthenticatedUser user) {
+        UUID userId = users.findUserId(user)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        return accountViews(userId);
+    }
+
+    private static DashboardResponse summarise(UUID userId, List<AccountView> accounts) {
+        BigDecimal total = sum(accounts, AccountView::currentAmount);
+        BigDecimal allocated = sum(accounts, AccountView::allocatedAmount);
+        BigDecimal market = sum(accounts, a -> a.marketValue() == null ? a.currentAmount() : a.marketValue());
+        BigDecimal gain = sum(accounts.stream().filter(a -> a.marketValue() != null).toList(),
+                a -> a.marketValue().subtract(a.investedMoney()));
+        return new DashboardResponse(userId, total, allocated, total.subtract(allocated), market, gain, accounts);
+    }
+
 }

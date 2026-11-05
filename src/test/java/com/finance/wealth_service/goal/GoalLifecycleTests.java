@@ -3,7 +3,9 @@ package com.finance.wealth_service.goal;
 import com.finance.wealth_service.support.TestUsers;
 import static com.finance.wealth_service.support.TestUsers.signedInAs;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.entity.User;
+import com.finance.wealth_service.account.repository.AccountRepository;
 import com.finance.wealth_service.account.repository.UserRepository;
 import com.finance.wealth_service.bucket.entity.Bucket;
 import com.finance.wealth_service.bucket.repository.BucketRepository;
@@ -37,6 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class GoalLifecycleTests {
     @Autowired WebApplicationContext context;
     @Autowired UserRepository users;
+    @Autowired AccountRepository accounts;
     @Autowired BucketRepository buckets;
     @Autowired GoalRepository goals;
     MockMvc mvc;
@@ -50,7 +53,8 @@ class GoalLifecycleTests {
         userId = user.getId();
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
                 .defaultRequest(get("/").with(signedInAs(user))).build();
-        UUID bucketId = buckets.saveAndFlush(new Bucket(userId, "House", new BigDecimal("20.00"))).getId();
+        UUID accountId = accounts.saveAndFlush(new Account(userId, "Bank", new BigDecimal("100.00"))).getId();
+        UUID bucketId = buckets.saveAndFlush(new Bucket(userId, accountId, "House", new BigDecimal("20.00"))).getId();
         goalId = goals.saveAndFlush(new Goal(bucketId, new BigDecimal("50000.00"), LocalDate.of(2027, 12, 31))).getId();
     }
 
@@ -102,8 +106,32 @@ class GoalLifecycleTests {
     @Test
     void deletedGoalLeavesTheDashboard() throws Exception {
         mvc.perform(delete("/goals/" + goalId)).andExpect(status().isNoContent());
-        mvc.perform(get("/goals"))
+        // The bucket stays; only its goal is gone.
+        mvc.perform(get("/dashboard"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[?(@.id=='" + goalId + "')]").isEmpty());
+                .andExpect(jsonPath("$.accounts[0].buckets[0].name").value("House"))
+                .andExpect(jsonPath("$.accounts[0].buckets[0].goals").isEmpty());
+    }
+
+    @Test
+    void showsTheGoalInsideItsBucket() throws Exception {
+        mvc.perform(get("/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accounts[0].buckets[0].currentAmount").value(20.00))
+                .andExpect(jsonPath("$.accounts[0].buckets[0].goals[0].id").value(goalId.toString()))
+                .andExpect(jsonPath("$.accounts[0].buckets[0].goals[0].goalAmount").value(50000.00))
+                .andExpect(jsonPath("$.accounts[0].buckets[0].goals[0].goalObjective").value("2027-12-31"));
+    }
+
+    /** Several goals on one bucket are milestones over the same money, soonest first. */
+    @Test
+    void showsEveryGoalOfABucketSoonestFirst() throws Exception {
+        UUID bucketId = goals.findById(goalId).orElseThrow().getBucketId();
+        UUID sooner = goals.saveAndFlush(new Goal(bucketId, new BigDecimal("10000.00"), LocalDate.of(2026, 12, 31))).getId();
+        mvc.perform(get("/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accounts[0].buckets[0].goals.length()").value(2))
+                .andExpect(jsonPath("$.accounts[0].buckets[0].goals[0].id").value(sooner.toString()))
+                .andExpect(jsonPath("$.accounts[0].buckets[0].goals[1].id").value(goalId.toString()));
     }
 }

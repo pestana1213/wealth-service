@@ -12,12 +12,11 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 public record CreateTransactionRequest(
-        UUID providerAccountId,
-        UUID destinationAccountId,
-        UUID sourceBucketId,
-        UUID destinationBucketId,
+        UUID fromAccountId,
+        UUID fromBucketId,
+        UUID toAccountId,
+        UUID toBucketId,
         @NotNull @Positive @Digits(integer = 17, fraction = 2) BigDecimal transactionAmount,
-        @NotNull TransactionType type,
         @NotNull TransactionCategory category,
         @NotNull @PastOrPresent LocalDate occurredAt,
         @Size(max = 255) String description) {}

@@ -1,5 +1,6 @@
 package com.finance.wealth_service.visualization.dto;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 /**
  * @param currentAmount the money contributed to the account
@@ -7,4 +8,7 @@ import java.util.UUID;
  * @param investedMoney what had gone in when that value was recorded, or null with it
  */
 public record AccountView(UUID id, String name, BigDecimal currentAmount,
-                          BigDecimal marketValue, BigDecimal investedMoney) {}
+                          BigDecimal allocatedAmount,
+                          BigDecimal availableAmount,
+                          BigDecimal marketValue, BigDecimal investedMoney,
+                          List<BucketView> buckets) {}

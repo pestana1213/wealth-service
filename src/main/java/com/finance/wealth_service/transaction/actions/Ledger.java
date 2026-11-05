@@ -6,7 +6,8 @@ import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.repository.AccountRepository;
 import com.finance.wealth_service.bucket.entity.Bucket;
 import com.finance.wealth_service.bucket.repository.BucketRepository;
-import com.finance.wealth_service.transaction.dto.CreateTransactionRequest;
+import com.finance.wealth_service.transaction.dto.Leg;
+import com.finance.wealth_service.transaction.dto.Movement;
 import com.finance.wealth_service.transaction.entity.Transaction;
 import com.finance.wealth_service.transaction.repository.TransactionRepository;
 import org.springframework.http.HttpStatus;
@@ -56,18 +57,20 @@ public class Ledger {
         this.transactionTemplate = transactionTemplate;
     }
 
-    public Transaction post(NewTransaction movement) {
-        CreateTransactionRequest request = movement.request();
+    public Transaction post(Movement movement) {
         return transactionTemplate.execute(_ -> {
-            Map<UUID, Account> lockedAccounts = lockAccounts(movement.owner(), request);
-            Map<UUID, Bucket> lockedBuckets = lockBuckets(movement.owner(), request);
-            applyToAccounts(request, lockedAccounts);
-            applyToBuckets(request, lockedBuckets);
+            Map<UUID, Account> lockedAccounts = lockAccounts(movement);
+            Map<UUID, Bucket> lockedBuckets = lockBuckets(movement);
+            requireBucketInAccount(movement.from(), lockedBuckets);
+            requireBucketInAccount(movement.to(), lockedBuckets);
+            applyToAccounts(movement, lockedAccounts);
+            applyToBuckets(movement, lockedBuckets);
             return transactions.saveAndFlush(new Transaction(
-                    ownerOf(lockedAccounts), request.providerAccountId(), request.destinationAccountId(),
-                    request.sourceBucketId(), request.destinationBucketId(), request.transactionAmount(),
-                    request.type(), request.category(), request.occurredAt(), request.description(),
-                    movement.reversalOf()));
+                    ownerOf(lockedAccounts),
+                    accountOf(movement.from()), accountOf(movement.to()),
+                    bucketOf(movement.from()),  bucketOf(movement.to()),
+                    movement.amount(), movement.type(), movement.category(),
+                    movement.occurredAt(), movement.description(), movement.reversalOf()));
         });
     }
 
@@ -77,48 +80,54 @@ public class Ledger {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "A movement needs an account"));
     }
 
-    private Map<UUID, Account> lockAccounts(AuthenticatedUser owner, CreateTransactionRequest request) {
+    private Map<UUID, Account> lockAccounts(Movement movement) {
+        AuthenticatedUser owner = movement.owner();
         Map<UUID, Account> locked = new HashMap<>();
-        Stream.of(request.providerAccountId(), request.destinationAccountId())
+        Stream.of(accountOf(movement.from()), accountOf(movement.to()))
                 .filter(Objects::nonNull).distinct().sorted()
                 .forEach(id -> locked.put(id, accounts.findOwnedByForUpdate(id, owner.subject(), owner.issuer())
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account not found"))));
         return locked;
     }
 
-    private Map<UUID, Bucket> lockBuckets(AuthenticatedUser owner, CreateTransactionRequest request) {
+    private Map<UUID, Bucket> lockBuckets(Movement movement) {
+        AuthenticatedUser owner = movement.owner();
         Map<UUID, Bucket> locked = new HashMap<>();
-        Stream.of(request.sourceBucketId(), request.destinationBucketId())
+        Stream.of(bucketOf( movement.from()), bucketOf(movement.to()))
                 .filter(Objects::nonNull).distinct().sorted()
                 .forEach(id -> locked.put(id, buckets.findOwnedByForUpdate(id, owner.subject(), owner.issuer())
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bucket not found"))));
         return locked;
     }
 
-    private void applyToAccounts(CreateTransactionRequest request, Map<UUID, Account> locked) {
-        if (Objects.equals(request.providerAccountId(), request.destinationAccountId())) {
+    private void applyToAccounts(Movement movement, Map<UUID, Account> locked) {
+        UUID sourceId = accountOf(movement.from());
+        UUID destinationId = accountOf(movement.to());
+        if (Objects.equals(sourceId, destinationId)) {
             return;
         }
-        Account source = locked.get(request.providerAccountId());
-        Account destination = locked.get(request.destinationAccountId());
+        Account source = locked.get(sourceId);
+        Account destination = locked.get(destinationId);
         if (source != null) {
-            source.setCurrentAmount(source.getCurrentAmount().subtract(request.transactionAmount()));
+            source.setCurrentAmount(source.getCurrentAmount().subtract(movement.amount()));
             accounts.saveAndFlush(source);
         }
         if (destination != null) {
-            destination.setCurrentAmount(destination.getCurrentAmount().add(request.transactionAmount()));
+            destination.setCurrentAmount(destination.getCurrentAmount().add(movement.amount()));
             accounts.saveAndFlush(destination);
         }
     }
 
-    private void applyToBuckets(CreateTransactionRequest request, Map<UUID, Bucket> locked) {
-        if (Objects.equals(request.sourceBucketId(), request.destinationBucketId())) {
+    private void applyToBuckets(Movement movement, Map<UUID, Bucket> locked) {
+        UUID sourceId = bucketOf(movement.from());
+        UUID destinationId = bucketOf(movement.to());
+        if (Objects.equals(sourceId, destinationId)) {
             return;
         }
-        Bucket source = locked.get(request.sourceBucketId());
-        Bucket destination = locked.get(request.destinationBucketId());
+        Bucket source = locked.get(sourceId);
+        Bucket destination = locked.get(destinationId);
         if (source != null) {
-            BigDecimal left = source.getCurrentAmount().subtract(request.transactionAmount());
+            BigDecimal left = source.getCurrentAmount().subtract(movement.amount());
             if (left.compareTo(BigDecimal.ZERO) < 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "Final Value from source bucket can't be less then 0");
@@ -127,8 +136,21 @@ public class Ledger {
             buckets.saveAndFlush(source);
         }
         if (destination != null) {
-            destination.setCurrentAmount(destination.getCurrentAmount().add(request.transactionAmount()));
+            destination.setCurrentAmount(destination.getCurrentAmount().add(movement.amount()));
             buckets.saveAndFlush(destination);
+        }
+    }
+
+    private static UUID accountOf(Leg leg) { return leg == null ? null : leg.accountId(); }
+
+    private static UUID bucketOf(Leg leg)  { return leg == null ? null : leg.bucketId(); }
+
+    private static void requireBucketInAccount(Leg leg, Map<UUID, Bucket> locked) {
+        if (leg == null || leg.bucketId() == null) return;
+        Bucket bucket = locked.get(leg.bucketId());
+        if (!bucket.getAccountId().equals(leg.accountId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Bucket is no longer in that account; retry");
         }
     }
 

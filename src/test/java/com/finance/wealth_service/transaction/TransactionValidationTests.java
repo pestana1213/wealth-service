@@ -54,13 +54,13 @@ class TransactionValidationTests {
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
                 .defaultRequest(get("/").with(signedInAs(user))).build();
         accountId = accounts.saveAndFlush(new Account(userId, "Bank", new BigDecimal("100.00"))).getId();
-        buckets.saveAndFlush(new Bucket(userId, "House", new BigDecimal("20.00")));
+        buckets.saveAndFlush(new Bucket(userId, accountId, "House", new BigDecimal("20.00")));
     }
 
     /** A valid INCOME payload with the amount, date and description fields supplied by the caller. */
     private String income(String fields) {
-        return "{\"destinationAccountId\":\"" + accountId + "\","
-                + "\"type\":\"INCOME\",\"category\":\"OTHER\"," + fields + "}";
+        return "{\"toAccountId\":\"" + accountId + "\","
+                + "\"category\":\"OTHER\"," + fields + "}";
     }
 
     private void expectFieldError(String body, String field) throws Exception {
@@ -102,8 +102,8 @@ class TransactionValidationTests {
 
     @Test
     void rejectsMissingCategory() throws Exception {
-        String body = "{\"destinationAccountId\":\"" + accountId + "\","
-                + "\"type\":\"INCOME\",\"transactionAmount\":10.00,\"occurredAt\":\"2026-10-01\"}";
+        String body = "{\"toAccountId\":\"" + accountId + "\","
+                + "\"transactionAmount\":10.00,\"occurredAt\":\"2026-10-01\"}";
         expectFieldError(body, "category");
     }
 

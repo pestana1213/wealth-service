@@ -26,6 +26,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -59,8 +60,8 @@ class TransactionReversalTests {
                 .defaultRequest(get("/").with(signedInAs(user))).build();
         bankId = accounts.saveAndFlush(new Account(userId, "Bank", new BigDecimal("100.00"))).getId();
         brokerId = accounts.saveAndFlush(new Account(userId, "Broker", BigDecimal.ZERO)).getId();
-        houseId = buckets.saveAndFlush(new Bucket(userId, "House", new BigDecimal("20.00"))).getId();
-        etfId = buckets.saveAndFlush(new Bucket(userId, "ETF", BigDecimal.ZERO)).getId();
+        houseId = buckets.saveAndFlush(new Bucket(userId, bankId, "House", new BigDecimal("20.00"))).getId();
+        etfId = buckets.saveAndFlush(new Bucket(userId, brokerId, "ETF", BigDecimal.ZERO)).getId();
     }
 
     private UUID create(String fields) throws Exception {
@@ -72,7 +73,7 @@ class TransactionReversalTests {
     }
 
     private UUID income() throws Exception {
-        return create("\"type\":\"INCOME\",\"destinationAccountId\":\"" + bankId + "\",\"destinationBucketId\":\"" + houseId + "\"");
+        return create("\"toBucketId\":\"" + houseId + "\"");
     }
 
     private void assertBalances(String bank, String broker, String house, String etf) {
@@ -95,7 +96,7 @@ class TransactionReversalTests {
 
     @Test
     void reversingExpenseCreditsTheAccountAndBucketBack() throws Exception {
-        UUID original = create("\"type\":\"EXPENSE\",\"providerAccountId\":\"" + bankId + "\",\"sourceBucketId\":\"" + houseId + "\"");
+        UUID original = create("\"fromBucketId\":\"" + houseId + "\"");
         assertBalances("90.00", "0.00", "10.00", "0.00");
         mvc.perform(post("/transactions/" + original + "/reversal"))
                 .andExpect(status().isCreated())
@@ -105,8 +106,7 @@ class TransactionReversalTests {
 
     @Test
     void reversingTransferSwapsBothSides() throws Exception {
-        UUID original = create("\"type\":\"TRANSFER\",\"providerAccountId\":\"" + bankId + "\",\"destinationAccountId\":\"" + brokerId + "\","
-                + "\"sourceBucketId\":\"" + houseId + "\",\"destinationBucketId\":\"" + etfId + "\"");
+        UUID original = create("\"fromBucketId\":\"" + houseId + "\",\"toBucketId\":\"" + etfId + "\"");
         assertBalances("90.00", "10.00", "10.00", "10.00");
         mvc.perform(post("/transactions/" + original + "/reversal"))
                 .andExpect(status().isCreated())
@@ -164,5 +164,23 @@ class TransactionReversalTests {
     @Test
     void returnsNotFoundForUnknownTransaction() throws Exception {
         mvc.perform(post("/transactions/" + UUID.randomUUID() + "/reversal")).andExpect(status().isNotFound());
+    }
+
+    /**
+     * The original credited ETF while it lived in the broker account. Once ETF is
+     * emptied and moved to the bank, the mirror would debit the broker for a bucket
+     * that is no longer there, so it is refused and nothing moves.
+     */
+    @Test
+    void refusesToReverseWhenTheBucketHasMovedToAnotherAccount() throws Exception {
+        UUID original = create("\"toBucketId\":\"" + etfId + "\"");
+        create("\"fromBucketId\":\"" + etfId + "\",\"toAccountId\":\"" + brokerId + "\"");
+        mvc.perform(patch("/buckets/" + etfId).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountId\":\"" + bankId + "\"}"))
+                .andExpect(status().isOk());
+        assertBalances("100.00", "10.00", "20.00", "0.00");
+
+        mvc.perform(post("/transactions/" + original + "/reversal")).andExpect(status().isConflict());
+        assertBalances("100.00", "10.00", "20.00", "0.00");
     }
 }

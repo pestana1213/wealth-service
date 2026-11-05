@@ -56,11 +56,11 @@ class BucketLifecycleTests {
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
                 .defaultRequest(get("/").with(signedInAs(user))).build();
         accountId = accounts.saveAndFlush(new Account(userId, "Bank", new BigDecimal("100.00"))).getId();
-        bucketId = buckets.saveAndFlush(new Bucket(userId, "House", new BigDecimal("20.00"))).getId();
+        bucketId = buckets.saveAndFlush(new Bucket(userId, accountId, "House", new BigDecimal("20.00"))).getId();
     }
 
     private UUID emptyBucket() {
-        return buckets.saveAndFlush(new Bucket(userId, "Empty", BigDecimal.ZERO)).getId();
+        return buckets.saveAndFlush(new Bucket(userId, accountId, "Empty", BigDecimal.ZERO)).getId();
     }
 
     @Test
@@ -120,19 +120,21 @@ class BucketLifecycleTests {
         mvc.perform(delete("/buckets/" + empty)).andExpect(status().isNoContent());
         mvc.perform(get("/dashboard"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.buckets[?(@.id=='" + empty + "')]").isEmpty())
-                .andExpect(jsonPath("$.buckets[?(@.id=='" + bucketId + "')]").isNotEmpty())
+                .andExpect(jsonPath("$.accounts[0].buckets[?(@.id=='" + empty + "')]").isEmpty())
+                .andExpect(jsonPath("$.accounts[0].buckets[?(@.id=='" + bucketId + "')]").isNotEmpty())
+                .andExpect(jsonPath("$.accounts[0].allocatedAmount").value(20.00))
+                .andExpect(jsonPath("$.accounts[0].availableAmount").value(80.00))
                 .andExpect(jsonPath("$.allocatedAmount").value(20.00));
     }
 
     @Test
     void archivedBucketTakesItsGoalsOffTheDashboard() throws Exception {
         UUID empty = emptyBucket();
-        goals.saveAndFlush(new Goal(empty, new BigDecimal("500.00"), LocalDate.of(2027, 12, 31)));
+        UUID goalId = goals.saveAndFlush(new Goal(empty, new BigDecimal("500.00"), LocalDate.of(2027, 12, 31))).getId();
         mvc.perform(delete("/buckets/" + empty)).andExpect(status().isNoContent());
-        mvc.perform(get("/goals"))
+        mvc.perform(get("/dashboard"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[?(@.bucketId=='" + empty + "')]").isEmpty());
+                .andExpect(jsonPath("$..goals[?(@.id=='" + goalId + "')]").isEmpty());
     }
 
     @Test
@@ -140,16 +142,14 @@ class BucketLifecycleTests {
         UUID empty = emptyBucket();
         mvc.perform(delete("/buckets/" + empty)).andExpect(status().isNoContent());
         mvc.perform(post("/transactions").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"destinationAccountId\":\"" + accountId + "\","
-                                + "\"destinationBucketId\":\"" + empty + "\",\"type\":\"INCOME\","
+                        .content("{\"toBucketId\":\"" + empty + "\","
                                 + "\"category\":\"OTHER\",\"transactionAmount\":10.00,\"occurredAt\":\"2026-10-01\"}"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void historyStillNamesAnArchivedBucket() throws Exception {
-        String income = "{\"destinationAccountId\":\"" + accountId + "\","
-                + "\"destinationBucketId\":\"" + bucketId + "\",\"type\":\"INCOME\","
+        String income = "{\"toBucketId\":\"" + bucketId + "\","
                 + "\"category\":\"HOUSE\",\"transactionAmount\":10.00,\"occurredAt\":\"2026-10-01\"}";
         mvc.perform(post("/transactions").contentType(MediaType.APPLICATION_JSON).content(income))
                 .andExpect(status().isCreated());
@@ -160,5 +160,37 @@ class BucketLifecycleTests {
         mvc.perform(get("/transactions"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].destination.name").value("House"));
+    }
+
+    @Test
+    void movesAnEmptyBucketToAnotherAccount() throws Exception {
+        UUID empty = emptyBucket();
+        UUID brokerId = accounts.saveAndFlush(new Account(userId, "Broker")).getId();
+        mvc.perform(patch("/buckets/" + empty).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountId\":\"" + brokerId + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accountId").value(brokerId.toString()));
+        assertThat(buckets.findById(empty).orElseThrow().getAccountId()).isEqualTo(brokerId);
+    }
+
+    /** Re-pointing a bucket that holds money would move the claim without moving the money. */
+    @Test
+    void refusesToMoveABucketThatStillHoldsMoney() throws Exception {
+        UUID brokerId = accounts.saveAndFlush(new Account(userId, "Broker")).getId();
+        mvc.perform(patch("/buckets/" + bucketId).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountId\":\"" + brokerId + "\"}"))
+                .andExpect(status().isConflict());
+        assertThat(buckets.findById(bucketId).orElseThrow().getAccountId()).isEqualTo(accountId);
+    }
+
+    @Test
+    void refusesToMoveABucketToAnotherUsersAccount() throws Exception {
+        UUID empty = emptyBucket();
+        User other = users.saveAndFlush(TestUsers.newUser("Other"));
+        UUID foreignAccount = accounts.saveAndFlush(new Account(other.getId(), "Theirs")).getId();
+        mvc.perform(patch("/buckets/" + empty).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountId\":\"" + foreignAccount + "\"}"))
+                .andExpect(status().isNotFound());
+        assertThat(buckets.findById(empty).orElseThrow().getAccountId()).isEqualTo(accountId);
     }
 }

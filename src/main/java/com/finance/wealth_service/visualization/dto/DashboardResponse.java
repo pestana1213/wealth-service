@@ -10,5 +10,4 @@ import java.util.UUID;
  */
 public record DashboardResponse(UUID userId, BigDecimal totalAmount, BigDecimal allocatedAmount,
                                 BigDecimal availableAmount, BigDecimal marketAmount, BigDecimal marketGain,
-                                List<AccountView> accounts,
-                                List<BucketView> buckets, List<GoalView> goals) {}
+                                List<AccountView> accounts) {}

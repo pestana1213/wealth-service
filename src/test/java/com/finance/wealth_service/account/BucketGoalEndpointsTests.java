@@ -1,6 +1,8 @@
 package com.finance.wealth_service.account;
 
+import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.entity.User;
+import com.finance.wealth_service.account.repository.AccountRepository;
 import com.finance.wealth_service.account.repository.UserRepository;
 import com.finance.wealth_service.bucket.entity.Bucket;
 import com.finance.wealth_service.bucket.repository.BucketRepository;
@@ -31,17 +33,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class BucketGoalEndpointsTests {
     @Autowired WebApplicationContext context;
     @Autowired UserRepository users;
+    @Autowired AccountRepository accounts;
     @Autowired BucketRepository buckets;
     @Autowired GoalRepository goals;
     @Autowired ObjectMapper mapper;
     MockMvc mvc;
     User user;
+    UUID accountId;
 
     @BeforeEach
     void setup() {
         user = users.saveAndFlush(TestUsers.newUser("João"));
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
                 .defaultRequest(get("/").with(signedInAs(user))).build();
+        accountId = accounts.saveAndFlush(new Account(user.getId(), "Bank")).getId();
+    }
+
+    /** A bucket body for the caller's account, with the remaining fields supplied by the test. */
+    String bucketBody(String fields) {
+        return "{\"accountId\":\"" + accountId + "\"" + (fields.isEmpty() ? "" : "," + fields) + "}";
     }
 
     UUID createUser() {
@@ -52,9 +62,10 @@ class BucketGoalEndpointsTests {
     void createsBucketWithInitialBalance() throws Exception {
         UUID userId = createUser();
         var result = mvc.perform(post("/buckets").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\" House \",\"currentAmount\":27000.50}"))
+                        .content(bucketBody("\"name\":\" House \",\"currentAmount\":27000.50")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.userId").value(userId.toString()))
+                .andExpect(jsonPath("$.accountId").value(accountId.toString()))
                 .andExpect(jsonPath("$.name").value("House"))
                 .andExpect(jsonPath("$.currentAmount").value(27000.50)).andReturn();
         UUID id = UUID.fromString(mapper.readTree(result.getResponse().getContentAsString()).get("id").asText());
@@ -64,17 +75,16 @@ class BucketGoalEndpointsTests {
 
     @Test
     void defaultsBucketBalanceToZero() throws Exception {
-        UUID userId = createUser();
         for (String amount : new String[]{"", ",\"currentAmount\":null"}) {
             mvc.perform(post("/buckets").contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"name\":\"Emergency\"" + amount + "}"))
+                            .content(bucketBody("\"name\":\"Emergency\"" + amount)))
                     .andExpect(status().isCreated()).andExpect(jsonPath("$.currentAmount").value(0));
         }
     }
 
     @Test
     void createsGoalWithOptionalDate() throws Exception {
-        UUID bucketId = buckets.saveAndFlush(new Bucket(createUser(), "House")).getId();
+        UUID bucketId = buckets.saveAndFlush(new Bucket(createUser(), accountId, "House")).getId();
         for (String date : new String[]{"", ",\"goalObjective\":\"2027-12-31\""}) {
             var result = mvc.perform(post("/goals").contentType(MediaType.APPLICATION_JSON)
                             .content("{\"bucketId\":\"" + bucketId + "\",\"goalAmount\":50000.25" + date + "}"))
@@ -94,7 +104,7 @@ class BucketGoalEndpointsTests {
         long bucketCount = buckets.count();
         long goalCount = goals.count();
         mvc.perform(post("/buckets").with(signedInAs(TestUsers.stranger())).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"House\"}"))
+                        .content(bucketBody("\"name\":\"House\"")))
                 .andExpect(status().isNotFound());
         mvc.perform(post("/goals").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"bucketId\":\"" + UUID.randomUUID() + "\",\"goalAmount\":100}"))
@@ -106,7 +116,8 @@ class BucketGoalEndpointsTests {
     @Test
     void cannotCreateGoalOnAnotherUsersBucket() throws Exception {
         User other = users.saveAndFlush(TestUsers.newUser("Other"));
-        UUID foreignBucket = buckets.saveAndFlush(new Bucket(other.getId(), "Theirs")).getId();
+        UUID foreignAccount = accounts.saveAndFlush(new Account(other.getId(), "Theirs")).getId();
+        UUID foreignBucket = buckets.saveAndFlush(new Bucket(other.getId(), foreignAccount, "Theirs")).getId();
         long before = goals.count();
         mvc.perform(post("/goals").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"bucketId\":\"" + foreignBucket + "\",\"goalAmount\":100}"))
@@ -118,11 +129,13 @@ class BucketGoalEndpointsTests {
     void rejectsInvalidBucketRequests() throws Exception {
         long before = buckets.count();
         for (String body : new String[]{"{}",
-                "{\"name\":\" \"}",
-                "{\"name\":\"" + "a".repeat(256) + "\"}",
-                "{\"name\":\"House\",\"currentAmount\":-1}",
-                "{\"name\":\"House\",\"currentAmount\":1.001}",
-                "{\"name\":\"House\",\"currentAmount\":100000000000000000}"}) {
+                "{\"name\":\"House\"}",
+                bucketBody(""),
+                bucketBody("\"name\":\" \""),
+                bucketBody("\"name\":\"" + "a".repeat(256) + "\""),
+                bucketBody("\"name\":\"House\",\"currentAmount\":-1"),
+                bucketBody("\"name\":\"House\",\"currentAmount\":1.001"),
+                bucketBody("\"name\":\"House\",\"currentAmount\":100000000000000000")}) {
             mvc.perform(post("/buckets").contentType(MediaType.APPLICATION_JSON).content(body))
                     .andExpect(status().isBadRequest());
         }
@@ -131,7 +144,7 @@ class BucketGoalEndpointsTests {
 
     @Test
     void rejectsInvalidGoalRequests() throws Exception {
-        UUID bucketId = buckets.saveAndFlush(new Bucket(createUser(), "House")).getId();
+        UUID bucketId = buckets.saveAndFlush(new Bucket(createUser(), accountId, "House")).getId();
         long before = goals.count();
         for (String amount : new String[]{"null", "0", "-1", "1.001", "100000000000000000"}) {
             mvc.perform(post("/goals").contentType(MediaType.APPLICATION_JSON)
@@ -145,5 +158,16 @@ class BucketGoalEndpointsTests {
                     .andExpect(status().isBadRequest());
         }
         assertThat(goals.count()).isEqualTo(before);
+    }
+
+    @Test
+    void cannotCreateBucketInAnotherUsersAccount() throws Exception {
+        User other = users.saveAndFlush(TestUsers.newUser("Other"));
+        UUID foreignAccount = accounts.saveAndFlush(new Account(other.getId(), "Theirs")).getId();
+        long before = buckets.count();
+        mvc.perform(post("/buckets").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountId\":\"" + foreignAccount + "\",\"name\":\"House\"}"))
+                .andExpect(status().isNotFound());
+        assertThat(buckets.count()).isEqualTo(before);
     }
 }

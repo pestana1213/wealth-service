@@ -6,8 +6,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.finance.wealth_service.visualization.actions.GetDashboardAction;
 import com.finance.wealth_service.visualization.dto.DashboardResponse;
 import com.finance.wealth_service.visualization.dto.AccountView;
-import com.finance.wealth_service.visualization.dto.BucketView;
-import com.finance.wealth_service.visualization.dto.GoalView;
 import java.util.List;
 import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,18 +18,11 @@ public class GetDashboard {
     public GetDashboard(GetDashboardAction action) { this.action = action; }
 
     @GetMapping("/dashboard")
-    @Operation(summary = "Get dashboard", description = "Returns totals, available cash, accounts, buckets and goals.")
+    @Operation(summary = "Get dashboard",
+            description = "Returns the totals and every account, each with its active buckets and their goals.")
     public DashboardResponse get(@AuthenticationPrincipal AuthenticatedUser user) { return action.execute(user); }
 
     @GetMapping("/accounts")
-    @Operation(summary = "List user accounts")
-    public List<AccountView> accounts(@AuthenticationPrincipal AuthenticatedUser user) { return action.execute(user).accounts(); }
-
-    @GetMapping("/buckets")
-    @Operation(summary = "List user buckets")
-    public List<BucketView> buckets(@AuthenticationPrincipal AuthenticatedUser user) { return action.execute(user).buckets(); }
-
-    @GetMapping("/goals")
-    @Operation(summary = "List user goals", description = "Includes current bucket amount for goal progress.")
-    public List<GoalView> goals(@AuthenticationPrincipal AuthenticatedUser user) { return action.execute(user).goals(); }
+    @Operation(summary = "List user accounts", description = "Each account with its active buckets and their goals.")
+    public List<AccountView> accounts(@AuthenticationPrincipal AuthenticatedUser user) { return action.accounts(user); }
 }

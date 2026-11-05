@@ -28,11 +28,12 @@ public class UpdateBucket {
 
     @PatchMapping("/buckets/{bucketId}")
     @Operation(summary = "Update a bucket",
-            description = "Updates the bucket name and/or corrects its allocated amount. Omitted fields are left unchanged. "
-                    + "Correcting the amount records no transaction and leaves account balances untouched.")
+            description = "Updates the bucket name, its account and/or corrects its allocated amount. Omitted fields are left unchanged. "
+                    + "Correcting the amount records no transaction and leaves account balances untouched. "
+                    + "Changing the account is only allowed while the bucket is empty (409 otherwise).")
     public CreateBucketResponse updateBucket(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID bucketId,
                                              @Valid @RequestBody UpdateBucketRequest request) {
         Bucket bucket = action.execute(user, bucketId, request);
-        return new CreateBucketResponse(bucket.getId(), bucket.getUserId(), bucket.getName(), bucket.getCurrentAmount());
+        return new CreateBucketResponse(bucket.getId(), bucket.getUserId(), bucket.getAccountId(), bucket.getName(), bucket.getCurrentAmount());
     }
 }

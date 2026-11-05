@@ -8,4 +8,6 @@ import java.util.UUID;
 public interface AccountPort {
 
     List<Account> getAccountsFromIds(List<UUID> ids);
+
+    boolean isOwnedBy(UUID accountId, String subject, String issuer);
 }

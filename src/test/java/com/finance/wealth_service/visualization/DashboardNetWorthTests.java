@@ -8,6 +8,8 @@ import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.entity.User;
 import com.finance.wealth_service.account.repository.AccountRepository;
 import com.finance.wealth_service.account.repository.UserRepository;
+import com.finance.wealth_service.bucket.entity.Bucket;
+import com.finance.wealth_service.bucket.repository.BucketRepository;
 import com.finance.wealth_service.valuation.entity.AccountValuation;
 import com.finance.wealth_service.valuation.repository.AccountValuationRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +40,7 @@ class DashboardNetWorthTests {
     @Autowired UserRepository users;
     @Autowired AccountRepository accounts;
     @Autowired AccountValuationRepository valuations;
+    @Autowired BucketRepository buckets;
     MockMvc mvc;
     User user;
     UUID userId;
@@ -101,5 +104,31 @@ class DashboardNetWorthTests {
                 .andExpect(jsonPath("$.accounts[1].id").value(brokerId.toString()))
                 .andExpect(jsonPath("$.accounts[1].marketValue").value(1250.50))
                 .andExpect(jsonPath("$.accounts[1].investedMoney").value(1000.00));
+    }
+
+    @Test
+    void nestsEachBucketInsideItsAccount() throws Exception {
+        UUID houseId = buckets.saveAndFlush(new Bucket(userId, bankId, "House", new BigDecimal("30.00"))).getId();
+        mvc.perform(get("/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accounts[0].buckets[0].id").value(houseId.toString()))
+                .andExpect(jsonPath("$.accounts[0].allocatedAmount").value(30.00))
+                .andExpect(jsonPath("$.accounts[0].availableAmount").value(70.00))
+                // An account without buckets still comes back, with an empty list.
+                .andExpect(jsonPath("$.accounts[1].buckets").isEmpty())
+                .andExpect(jsonPath("$.accounts[1].allocatedAmount").value(0))
+                .andExpect(jsonPath("$.accounts[1].availableAmount").value(1000.00))
+                .andExpect(jsonPath("$.allocatedAmount").value(30.00))
+                .andExpect(jsonPath("$.availableAmount").value(1070.00));
+    }
+
+    /** Buckets may claim more than the account holds; the dashboard shows it instead of hiding it. */
+    @Test
+    void showsAnAccountWhoseBucketsClaimMoreThanItHolds() throws Exception {
+        buckets.saveAndFlush(new Bucket(userId, bankId, "House", new BigDecimal("150.00")));
+        mvc.perform(get("/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accounts[0].allocatedAmount").value(150.00))
+                .andExpect(jsonPath("$.accounts[0].availableAmount").value(-50.00));
     }
 }

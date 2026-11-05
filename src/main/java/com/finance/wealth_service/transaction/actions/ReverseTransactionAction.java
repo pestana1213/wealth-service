@@ -2,9 +2,9 @@ package com.finance.wealth_service.transaction.actions;
 
 import com.finance.wealth_service.auth.AuthenticatedUser;
 
-import com.finance.wealth_service.transaction.dto.CreateTransactionRequest;
+import com.finance.wealth_service.transaction.dto.Leg;
+import com.finance.wealth_service.transaction.dto.Movement;
 import com.finance.wealth_service.transaction.entity.Transaction;
-import com.finance.wealth_service.transaction.entity.TransactionType;
 import com.finance.wealth_service.transaction.repository.TransactionRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -39,30 +39,21 @@ public class ReverseTransactionAction {
         if (transactions.existsByReversalOf(transactionId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Transaction was already reversed");
         }
-        return createTransaction.execute(new NewTransaction(user, mirrorOf(original), transactionId));
+        return createTransaction.execute(mirrorOf(user, original));
     }
 
-    /**
-     * Swaps origin and destination on both the account and the bucket side, which
-     * turns an income into an expense and a transfer into the opposite transfer.
-     * The reversal is dated today: it is a correction made now, not a rewrite of
-     * the original movement's date.
-     */
-    private CreateTransactionRequest mirrorOf(Transaction original) {
-        TransactionType mirroredType = switch (original.getType()) {
-            case INCOME -> TransactionType.EXPENSE;
-            case EXPENSE -> TransactionType.INCOME;
-            case TRANSFER -> TransactionType.TRANSFER;
-        };
-        return new CreateTransactionRequest(
-                original.getDestinationAccountId(),
-                original.getProviderAccountId(),
-                original.getDestinationBucketId(),
-                original.getSourceBucketId(),
+    private static Movement mirrorOf(AuthenticatedUser user, Transaction original) {
+        return new Movement(user,
+                leg(original.getDestinationAccountId(), original.getDestinationBucketId()),
+                leg(original.getProviderAccountId(), original.getSourceBucketId()),
                 original.getTransactionAmount(),
-                mirroredType,
                 original.getCategory(),
                 LocalDate.now(),
-                "Reversal of " + original.getId());
+                "Reversal of " + original.getId(),
+                original.getId());
+    }
+
+    private static Leg leg(UUID accountId, UUID bucketId) {
+        return accountId == null ? null : new Leg(accountId, bucketId);
     }
 }

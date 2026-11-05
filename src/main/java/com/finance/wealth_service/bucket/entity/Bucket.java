@@ -22,6 +22,10 @@ public class Bucket {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
+    @NotNull
+    @Column(name = "account_id", nullable = false)
+    private UUID accountId;
+
     @NotBlank
     @Column(nullable = false)
     private String name;
@@ -31,19 +35,19 @@ public class Bucket {
     @Column(name = "current_amount", nullable = false, precision = 19, scale = 2)
     private BigDecimal currentAmount = new BigDecimal("0.00");
 
-    /** An archived bucket keeps its history but is hidden from the dashboard and refused by new transactions. */
     @Column(nullable = false)
     private boolean archived = false;
 
     protected Bucket() {
     }
 
-    public Bucket(UUID userId, String name) {
-        this(userId, name, BigDecimal.ZERO);
+    public Bucket(UUID userId, UUID accountId, String name) {
+        this(userId, accountId, name, BigDecimal.ZERO);
     }
 
-    public Bucket(UUID userId, String name, BigDecimal currentAmount) {
+    public Bucket(UUID userId, UUID accountId, String name, BigDecimal currentAmount) {
         this.userId = userId;
+        this.accountId = Objects.requireNonNull(accountId, "accountId is required");
         this.name = name;
         setCurrentAmount(currentAmount);
     }
@@ -54,6 +58,10 @@ public class Bucket {
 
     public UUID getUserId() {
         return userId;
+    }
+
+    public UUID getAccountId() {
+        return accountId;
     }
 
     public String getName() {
@@ -70,6 +78,10 @@ public class Bucket {
 
     public void setName(String name) {
         this.name = Objects.requireNonNull(name, "name is required");
+    }
+
+    public void moveTo(UUID accountId) {
+        this.accountId = Objects.requireNonNull(accountId, "accountId is required");
     }
 
     public void archive() {

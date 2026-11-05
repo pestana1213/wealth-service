@@ -21,4 +21,9 @@ public class GetAccounts implements AccountPort {
     public List<Account> getAccountsFromIds(List<UUID> ids) {
         return accountRepo.findAllByIds(ids);
     }
+
+    @Override
+    public boolean isOwnedBy(UUID accountId, String subject, String issuer) {
+        return accountRepo.findOwnedBy(accountId, subject, issuer).isPresent();
+    }
 }

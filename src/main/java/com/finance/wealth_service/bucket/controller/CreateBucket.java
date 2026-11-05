@@ -28,6 +28,6 @@ public class CreateBucket {
     public CreateBucketResponse create(@AuthenticationPrincipal AuthenticatedUser user,
                                        @Valid @RequestBody CreateBucketRequest request) {
         Bucket bucket = action.execute(user, request);
-        return new CreateBucketResponse(bucket.getId(), bucket.getUserId(), bucket.getName(), bucket.getCurrentAmount());
+        return new CreateBucketResponse(bucket.getId(), bucket.getUserId(), bucket.getAccountId(), bucket.getName(), bucket.getCurrentAmount());
     }
 }

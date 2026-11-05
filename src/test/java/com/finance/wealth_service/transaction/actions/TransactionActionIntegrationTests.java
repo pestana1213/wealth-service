@@ -14,7 +14,6 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.finance.wealth_service.transaction.entity.Transaction;
 import com.finance.wealth_service.transaction.entity.TransactionCategory;
-import com.finance.wealth_service.transaction.entity.TransactionType;
 import com.finance.wealth_service.transaction.repository.TransactionRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.*;
@@ -53,6 +52,7 @@ class TransactionActionIntegrationTests {
     UUID bucketId;
     UUID otherAccountId;
     UUID otherBucketId;
+    UUID carBucketId;
 
     @BeforeEach
     void setup() {
@@ -63,8 +63,10 @@ class TransactionActionIntegrationTests {
                 .issuer(caller.issuer()).subject(caller.subject()).build());
         accountId = accounts.saveAndFlush(new Account(userId, "Bank", new BigDecimal("100.00"))).getId();
         otherAccountId = accounts.saveAndFlush(new Account(userId, "Broker")).getId();
-        otherBucketId = buckets.saveAndFlush(new Bucket(userId, "ETF")).getId();
-        bucketId = buckets.saveAndFlush(new Bucket(userId, "House", new BigDecimal("20.00"))).getId();
+        // House and Car live in the bank, ETF in the broker.
+        otherBucketId = buckets.saveAndFlush(new Bucket(userId, otherAccountId, "ETF")).getId();
+        bucketId = buckets.saveAndFlush(new Bucket(userId, accountId, "House", new BigDecimal("20.00"))).getId();
+        carBucketId = buckets.saveAndFlush(new Bucket(userId, accountId, "Car")).getId();
     }
 
     @AfterEach
@@ -73,15 +75,18 @@ class TransactionActionIntegrationTests {
             entityManager.createQuery("delete from Transaction t where t.userId = :userId").setParameter("userId", userId).executeUpdate();
             buckets.deleteById(otherBucketId);
             accounts.deleteById(otherAccountId);
+            buckets.deleteById(carBucketId);
             buckets.deleteById(bucketId);
             accounts.deleteById(accountId);
             users.deleteById(userId);
         });
     }
 
+    /** An income into the bank, or straight into one of its buckets. */
     CreateTransactionRequest request(UUID targetBucket, TransactionCategory category) {
-        return new CreateTransactionRequest(null, accountId, null, targetBucket,
-                new BigDecimal("30.25"), TransactionType.INCOME, category, LocalDate.now(), "Income test");
+        return targetBucket == null
+                ? movement(null, null, accountId, null, category)
+                : movement(null, null, null, targetBucket, category);
     }
 
     long transactionCount() {
@@ -133,7 +138,8 @@ class TransactionActionIntegrationTests {
     @Test
     void foreignBucketDoesNotChangeBalance() {
         User other = users.saveAndFlush(TestUsers.newUser("Other"));
-        Bucket foreign = buckets.saveAndFlush(new Bucket(other.getId(), "Other"));
+        Account foreignAccount = accounts.saveAndFlush(new Account(other.getId(), "Other"));
+        Bucket foreign = buckets.saveAndFlush(new Bucket(other.getId(), foreignAccount.getId(), "Other"));
         try {
             assertThatThrownBy(() -> action.execute(caller, request(foreign.getId(), TransactionCategory.OTHER)))
                     .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
@@ -141,6 +147,7 @@ class TransactionActionIntegrationTests {
             assertThat(transactionCount()).isZero();
         } finally {
             buckets.deleteById(foreign.getId());
+            accounts.deleteById(foreignAccount.getId());
             users.deleteById(other.getId());
         }
     }
@@ -158,10 +165,11 @@ class TransactionActionIntegrationTests {
         assertThat(buckets.findById(bucketId).orElseThrow().getCurrentAmount()).isEqualByComparingTo("50.25");
     }
 
-    CreateTransactionRequest movement(TransactionType type, UUID sourceAccount, UUID destinationAccount,
-                                      UUID sourceBucket, UUID destinationBucket, TransactionCategory category) {
-        return new CreateTransactionRequest(sourceAccount, destinationAccount, sourceBucket, destinationBucket,
-                new BigDecimal("30.25"), type, category, LocalDate.now(), "Movement test");
+    /** Each side is an account or a bucket, never both; the ledger derives the bucket's account. */
+    CreateTransactionRequest movement(UUID fromAccount, UUID fromBucket, UUID toAccount, UUID toBucket,
+                                      TransactionCategory category) {
+        return new CreateTransactionRequest(fromAccount, fromBucket, toAccount, toBucket,
+                new BigDecimal("30.25"), category, LocalDate.now(), "Movement test");
     }
 
     void assertBalances(String bank, String broker, String house, String etf) {
@@ -174,8 +182,8 @@ class TransactionActionIntegrationTests {
     @Test
     void expenseDebitsBothTheAccountAndTheBucket() {
         action.execute(caller, request(bucketId, TransactionCategory.HOUSE));
-        Transaction transaction = action.execute(caller, movement(TransactionType.EXPENSE, accountId, null,
-                bucketId, null, TransactionCategory.HOUSE));
+        Transaction transaction = action.execute(caller, movement(null, bucketId, null, null,
+                TransactionCategory.HOUSE));
         assertThat(transactions.findById(transaction.getId())).isPresent();
         assertBalances("100.00", "0", "20", "0");
         assertThat(transactionCount()).isEqualTo(2);
@@ -185,7 +193,7 @@ class TransactionActionIntegrationTests {
     @Test
     void expenseDrivesTheAccountNegativeWithoutCheckingSufficientFunds() {
         for (int movements = 0; movements < 4; movements++) {
-            action.execute(caller, movement(TransactionType.EXPENSE, accountId, null, null, null, TransactionCategory.OTHER));
+            action.execute(caller, movement(accountId, null, null, null, TransactionCategory.OTHER));
         }
         assertBalances("-21.00", "0", "20", "0");
         assertThat(transactionCount()).isEqualTo(4);
@@ -194,8 +202,8 @@ class TransactionActionIntegrationTests {
     /** A bucket is a share of money that exists, so it cannot go below zero. */
     @Test
     void expenseRefusesToDriveTheBucketNegative() {
-        assertThatThrownBy(() -> action.execute(caller, movement(TransactionType.EXPENSE, accountId, null,
-                bucketId, null, TransactionCategory.HOUSE)))
+        assertThatThrownBy(() -> action.execute(caller, movement(null, bucketId, null, null,
+                TransactionCategory.HOUSE)))
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         exception -> assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
         assertBalances("100", "0", "20", "0");
@@ -205,8 +213,8 @@ class TransactionActionIntegrationTests {
     @Test
     void transferMovesMoneyBetweenAccountsAndBuckets() {
         action.execute(caller, request(bucketId, TransactionCategory.HOUSE));
-        Transaction transaction = action.execute(caller, movement(TransactionType.TRANSFER, accountId, otherAccountId,
-                bucketId, otherBucketId, TransactionCategory.INVESTMENT));
+        Transaction transaction = action.execute(caller, movement(null, bucketId, null, otherBucketId,
+                TransactionCategory.INVESTMENT));
         assertThat(transactions.findById(transaction.getId())).isPresent();
         assertBalances("100.00", "30.25", "20", "30.25");
         assertThat(transactionCount()).isEqualTo(2);
@@ -214,49 +222,54 @@ class TransactionActionIntegrationTests {
 
     @Test
     void transferRefusesToDriveTheSourceBucketNegative() {
-        assertThatThrownBy(() -> action.execute(caller, movement(TransactionType.TRANSFER, accountId, otherAccountId,
-                bucketId, otherBucketId, TransactionCategory.INVESTMENT)))
+        assertThatThrownBy(() -> action.execute(caller, movement(null, bucketId, null, otherBucketId,
+                TransactionCategory.INVESTMENT)))
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         exception -> assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
         assertBalances("100", "0", "20", "0");
         assertThat(transactionCount()).isZero();
     }
 
+    /** Money that is not allocated in one account can go straight into a bucket of another. */
     @Test
-    void transferBetweenAccountsPreservesSameBucket() {
-        action.execute(caller, movement(TransactionType.TRANSFER, accountId, otherAccountId,
-                bucketId, bucketId, TransactionCategory.HOUSE));
-        assertBalances("69.75", "30.25", "20", "0");
+    void transferFromAnAccountIntoABucketOfAnotherAccount() {
+        action.execute(caller, movement(accountId, null, null, otherBucketId, TransactionCategory.INVESTMENT));
+        assertBalances("69.75", "30.25", "20", "30.25");
+    }
+
+    @Test
+    void transferFromABucketIntoAnotherAccount() {
+        action.execute(caller, request(bucketId, TransactionCategory.HOUSE));
+        action.execute(caller, movement(null, bucketId, otherAccountId, null, TransactionCategory.OTHER));
+        assertBalances("100.00", "30.25", "20", "0");
     }
 
     @Test
     void transferBetweenAccountsWithoutBuckets() {
-        action.execute(caller, movement(TransactionType.TRANSFER, accountId, otherAccountId,
-                null, null, TransactionCategory.OTHER));
+        action.execute(caller, movement(accountId, null, otherAccountId, null, TransactionCategory.OTHER));
         assertBalances("69.75", "30.25", "20", "0");
     }
 
     @Test
     void allocationsReallocationsAndReleasesPreserveAccountBalance() {
-        action.execute(caller, movement(TransactionType.TRANSFER, accountId, accountId,
-                null, bucketId, TransactionCategory.HOUSE));
+        action.execute(caller, movement(accountId, null, null, bucketId, TransactionCategory.HOUSE));
         assertBalances("100", "0", "50.25", "0");
-        action.execute(caller, movement(TransactionType.TRANSFER, accountId, accountId,
-                bucketId, otherBucketId, TransactionCategory.INVESTMENT));
-        assertBalances("100", "0", "20", "30.25");
-        action.execute(caller, movement(TransactionType.TRANSFER, accountId, accountId,
-                otherBucketId, null, TransactionCategory.OTHER));
+        action.execute(caller, movement(null, bucketId, null, carBucketId, TransactionCategory.CAR));
         assertBalances("100", "0", "20", "0");
+        assertThat(buckets.findById(carBucketId).orElseThrow().getCurrentAmount()).isEqualByComparingTo("30.25");
+        action.execute(caller, movement(null, carBucketId, accountId, null, TransactionCategory.OTHER));
+        assertBalances("100", "0", "20", "0");
+        assertThat(buckets.findById(carBucketId).orElseThrow().getCurrentAmount()).isEqualByComparingTo("0");
         assertThat(transactionCount()).isEqualTo(3);
     }
 
     @Test
     void expenseAndTransferRollBackWhenHistoryInsertFails() {
-        assertThatThrownBy(() -> action.execute(caller, movement(TransactionType.EXPENSE, accountId, null,
-                bucketId, null, null))).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> action.execute(caller, movement(null, bucketId, null, null, null)))
+                .isInstanceOf(RuntimeException.class);
         assertBalances("100", "0", "20", "0");
-        assertThatThrownBy(() -> action.execute(caller, movement(TransactionType.TRANSFER, accountId, otherAccountId,
-                bucketId, otherBucketId, null))).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> action.execute(caller, movement(null, bucketId, null, otherBucketId, null)))
+                .isInstanceOf(RuntimeException.class);
         assertBalances("100", "0", "20", "0");
         assertThat(transactionCount()).isZero();
     }
@@ -265,21 +278,21 @@ class TransactionActionIntegrationTests {
     void rejectsForeignAndMissingReferencesOnEitherSide() {
         User other = users.saveAndFlush(TestUsers.newUser("Foreign"));
         Account foreignAccount = accounts.saveAndFlush(new Account(other.getId(), "Foreign"));
-        Bucket foreignBucket = buckets.saveAndFlush(new Bucket(other.getId(), "Foreign"));
+        Bucket foreignBucket = buckets.saveAndFlush(new Bucket(other.getId(), foreignAccount.getId(), "Foreign"));
         try {
             for (UUID invalid : new UUID[]{UUID.randomUUID(), foreignAccount.getId()}) {
                 for (CreateTransactionRequest request : new CreateTransactionRequest[]{
-                        movement(TransactionType.EXPENSE, invalid, null, null, null, TransactionCategory.OTHER),
-                        movement(TransactionType.TRANSFER, invalid, otherAccountId, null, null, TransactionCategory.OTHER),
-                        movement(TransactionType.TRANSFER, accountId, invalid, null, null, TransactionCategory.OTHER)}) {
+                        movement(invalid, null, null, null, TransactionCategory.OTHER),
+                        movement(invalid, null, otherAccountId, null, TransactionCategory.OTHER),
+                        movement(accountId, null, invalid, null, TransactionCategory.OTHER)}) {
                     assertThatThrownBy(() -> action.execute(caller, request)).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
                 }
             }
             for (UUID invalid : new UUID[]{UUID.randomUUID(), foreignBucket.getId()}) {
                 for (CreateTransactionRequest request : new CreateTransactionRequest[]{
-                        movement(TransactionType.EXPENSE, accountId, null, invalid, null, TransactionCategory.OTHER),
-                        movement(TransactionType.TRANSFER, accountId, otherAccountId, invalid, otherBucketId, TransactionCategory.OTHER),
-                        movement(TransactionType.TRANSFER, accountId, otherAccountId, bucketId, invalid, TransactionCategory.OTHER)}) {
+                        movement(null, invalid, null, null, TransactionCategory.OTHER),
+                        movement(null, invalid, null, otherBucketId, TransactionCategory.OTHER),
+                        movement(null, bucketId, null, invalid, TransactionCategory.OTHER)}) {
                     assertThatThrownBy(() -> action.execute(caller, request)).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
                 }
             }
@@ -295,31 +308,23 @@ class TransactionActionIntegrationTests {
     @Test
     void httpRequestsCommitBalancesToDatabase() throws Exception {
         try (var client = java.net.http.HttpClient.newHttpClient()) {
-            for (CreateTransactionRequest request : new CreateTransactionRequest[]{
-                    request(bucketId, TransactionCategory.HOUSE),
-                    movement(TransactionType.EXPENSE, accountId, null, null, null, TransactionCategory.HOUSE),
-                    movement(TransactionType.TRANSFER, accountId, otherAccountId, bucketId, otherBucketId, TransactionCategory.OTHER)}) {
+            record Step(CreateTransactionRequest request, String bank, String house) {}
+            for (Step step : new Step[]{
+                    new Step(request(bucketId, TransactionCategory.HOUSE), "130.25", "50.25"),
+                    new Step(movement(accountId, null, null, null, TransactionCategory.HOUSE), "100.00", "50.25"),
+                    new Step(movement(null, bucketId, null, otherBucketId, TransactionCategory.OTHER), "69.75", "20.00")}) {
                 var response = client.send(java.net.http.HttpRequest.newBuilder(
                                 java.net.URI.create("http://localhost:" + port + "/transactions"))
                         .header("Content-Type", "application/json")
                         .header("Authorization", "Bearer " + TOKEN)
-                        .POST(java.net.http.HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(request)))
+                        .POST(java.net.http.HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(step.request())))
                         .build(), java.net.http.HttpResponse.BodyHandlers.ofString());
                 assertThat(response.statusCode()).withFailMessage(response.body()).isEqualTo(201);
-                BigDecimal expectedBank = switch (request.type()) {
-                    case INCOME -> new BigDecimal("130.25");
-                    case EXPENSE -> new BigDecimal("100.00");
-                    case TRANSFER -> new BigDecimal("69.75");
-                };
-                BigDecimal expectedHouse = switch (request.type()) {
-                    case INCOME, EXPENSE -> new BigDecimal("50.25");
-                    case TRANSFER -> new BigDecimal("20.00");
-                };
                 // Read through JDBC after the HTTP response, bypassing the JPA persistence context.
                 assertThat(jdbc.queryForObject("select current_amount from accounts where id = ?", BigDecimal.class, accountId))
-                        .isEqualByComparingTo(expectedBank);
+                        .isEqualByComparingTo(step.bank());
                 assertThat(jdbc.queryForObject("select current_amount from buckets where id = ?", BigDecimal.class, bucketId))
-                        .isEqualByComparingTo(expectedHouse);
+                        .isEqualByComparingTo(step.house());
             }
             assertThat(jdbc.queryForObject("select current_amount from accounts where id = ?", BigDecimal.class, otherAccountId))
                     .isEqualByComparingTo("30.25");

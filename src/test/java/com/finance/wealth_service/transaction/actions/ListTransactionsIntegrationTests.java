@@ -13,7 +13,6 @@ import com.finance.wealth_service.auth.AuthenticatedUser;
 import com.finance.wealth_service.support.TestUsers;
 import com.finance.wealth_service.transaction.entity.TransactionCategory;
 import com.finance.wealth_service.transaction.entity.Transaction;
-import com.finance.wealth_service.transaction.entity.TransactionType;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,8 +55,8 @@ class ListTransactionsIntegrationTests {
         caller = TestUsers.identityOf(user);
         accountId = accounts.saveAndFlush(new Account(userId, "Moey", new BigDecimal("1000.00"))).getId();
         otherAccountId = accounts.saveAndFlush(new Account(userId, "XTB", new BigDecimal("1000.00"))).getId();
-        bucketId = buckets.saveAndFlush(new Bucket(userId, "Casa", new BigDecimal("100.00"))).getId();
-        otherBucketId = buckets.saveAndFlush(new Bucket(userId, "Carro", new BigDecimal("100.00"))).getId();
+        bucketId = buckets.saveAndFlush(new Bucket(userId, accountId, "Casa", new BigDecimal("100.00"))).getId();
+        otherBucketId = buckets.saveAndFlush(new Bucket(userId, accountId, "Carro", new BigDecimal("100.00"))).getId();
     }
 
     @AfterEach
@@ -73,10 +72,9 @@ class ListTransactionsIntegrationTests {
         });
     }
 
-    CreateTransactionRequest request(TransactionType type, UUID sourceAccount, UUID destinationAccount,
-                                     UUID sourceBucket, UUID destinationBucket) {
-        return new CreateTransactionRequest(sourceAccount, destinationAccount, sourceBucket, destinationBucket,
-                new BigDecimal("10.00"), type, TransactionCategory.OTHER, LocalDate.now(), "History test");
+    CreateTransactionRequest request(UUID fromAccount, UUID fromBucket, UUID toAccount, UUID toBucket) {
+        return new CreateTransactionRequest(fromAccount, fromBucket, toAccount, toBucket,
+                new BigDecimal("10.00"), TransactionCategory.OTHER, LocalDate.now(), "History test");
     }
 
     void setCreatedAt(UUID transactionId, Instant createdAt) {
@@ -86,7 +84,7 @@ class ListTransactionsIntegrationTests {
 
     @Test
     void namesTheBucketsWhenATransferStaysInsideOneAccount() {
-        createTransaction.execute(caller, request(TransactionType.TRANSFER, accountId, accountId, bucketId, otherBucketId));
+        createTransaction.execute(caller, request(null, bucketId, null, otherBucketId));
 
         List<TransactionDTO> history = listTransactions.listTransactions(caller);
 
@@ -102,7 +100,7 @@ class ListTransactionsIntegrationTests {
 
     @Test
     void namesTheAccountsWhenMoneyMovesBetweenThem() {
-        createTransaction.execute(caller, request(TransactionType.TRANSFER, accountId, otherAccountId, null, null));
+        createTransaction.execute(caller, request(accountId, null, otherAccountId, null));
 
         List<TransactionDTO> history = listTransactions.listTransactions(caller);
 
@@ -113,23 +111,21 @@ class ListTransactionsIntegrationTests {
     }
 
     @Test
-    void namesTheAccountsWhenBothSidesShareTheSameBucket() {
-        createTransaction.execute(caller, 
-                request(TransactionType.TRANSFER, accountId, otherAccountId, bucketId, bucketId));
+    void namesTheBucketAndTheAccountWhenABucketPaysIntoAnotherAccount() {
+        createTransaction.execute(caller, request(null, bucketId, otherAccountId, null));
 
         List<TransactionDTO> history = listTransactions.listTransactions(caller);
 
         assertThat(history).hasSize(1);
-        assertThat(history.getFirst().source().name()).isEqualTo("Moey");
-        assertThat(history.getFirst().source().type()).isEqualTo(ACCOUNT);
+        assertThat(history.getFirst().source().name()).isEqualTo("Casa");
+        assertThat(history.getFirst().source().type()).isEqualTo(BUCKET);
         assertThat(history.getFirst().destination().name()).isEqualTo("XTB");
         assertThat(history.getFirst().destination().type()).isEqualTo(ACCOUNT);
     }
 
     @Test
     void namesTheAccountAndTheBucketWhenMoneyIsAllocated() {
-        createTransaction.execute(caller, 
-                request(TransactionType.TRANSFER, accountId, accountId, null, otherBucketId));
+        createTransaction.execute(caller, request(accountId, null, null, otherBucketId));
 
         List<TransactionDTO> history = listTransactions.listTransactions(caller);
 
@@ -142,8 +138,8 @@ class ListTransactionsIntegrationTests {
 
     @Test
     void ordersSameDayMovementsNewestInsertedFirst() {
-        Transaction older = createTransaction.execute(caller, request(TransactionType.EXPENSE, accountId, null, null, null));
-        Transaction newer = createTransaction.execute(caller, request(TransactionType.EXPENSE, accountId, null, null, null));
+        Transaction older = createTransaction.execute(caller, request(accountId, null, null, null));
+        Transaction newer = createTransaction.execute(caller, request(accountId, null, null, null));
         setCreatedAt(older.getId(), Instant.now().minusSeconds(3600));
         setCreatedAt(newer.getId(), Instant.now());
 
@@ -155,10 +151,9 @@ class ListTransactionsIntegrationTests {
 
     @Test
     void ordersByMovementDateBeforeInsertionOrder() {
-        Transaction today = createTransaction.execute(caller, request(TransactionType.EXPENSE, accountId, null, null, null));
+        Transaction today = createTransaction.execute(caller, request(accountId, null, null, null));
         Transaction yesterday = createTransaction.execute(caller, new CreateTransactionRequest(accountId, null, null, null,
-                new BigDecimal("10.00"), TransactionType.EXPENSE, TransactionCategory.OTHER,
-                LocalDate.now().minusDays(1), "Yesterday"));
+                new BigDecimal("10.00"), TransactionCategory.OTHER, LocalDate.now().minusDays(1), "Yesterday"));
         setCreatedAt(yesterday.getId(), Instant.now());
 
         List<TransactionDTO> history = listTransactions.listTransactions(caller);
@@ -169,14 +164,14 @@ class ListTransactionsIntegrationTests {
 
     @Test
     void unprovisionedCallerHasNoHistory() {
-        createTransaction.execute(caller, request(TransactionType.INCOME, null, accountId, null, null));
+        createTransaction.execute(caller, request(null, null, accountId, null));
 
         assertThat(listTransactions.listTransactions(TestUsers.stranger())).isEmpty();
     }
 
     @Test
     void leavesIncomeWithoutSourceNull() {
-        createTransaction.execute(caller, request(TransactionType.INCOME, null, accountId, null, null));
+        createTransaction.execute(caller, request(null, null, accountId, null));
 
         List<TransactionDTO> history = listTransactions.listTransactions(caller);
 
