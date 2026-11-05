@@ -13,6 +13,7 @@ import com.finance.wealth_service.transaction.repository.TransactionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.function.Function;
@@ -45,8 +46,8 @@ public class ListTransactions {
         this.bucketPort = bucketPort;
     }
 
+    @Transactional(readOnly = true)
     public List<TransactionDTO> listTransactions(AuthenticatedUser user) {
-        // Joined on the token's identity: a caller that was never provisioned simply has no history.
         List<Transaction> transactions = transactionRepo.findHistory(user.subject(), user.issuer());
         Map<UUID, MovementAcc> accounts = accounts(transactions);
         Map<UUID, MovementAcc> buckets = buckets(transactions);

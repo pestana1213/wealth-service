@@ -28,7 +28,7 @@ public class CreateValuationAction {
 
     @Transactional
     public AccountValuation execute(AuthenticatedUser user, UUID accountId, CreateValuationRequest request) {
-        Account account = accounts.findOwnedBy(accountId, user.subject(), user.issuer())
+        Account account = accounts.findOwnedByForUpdate(accountId, user.subject(), user.issuer())
                 .orElseThrow(() -> new NotFoundException("Account not found"));
         if (account.getType() != AccountType.INVESTMENT) {
             throw new InvalidRequestException("Valuations can only be recorded for investment accounts");

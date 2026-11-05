@@ -1,7 +1,6 @@
 package com.finance.wealth_service.visualization.actions;
 
 import com.finance.wealth_service.auth.AuthenticatedUser;
-import java.util.Optional;
 
 import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.repository.AccountRepository;
@@ -16,6 +15,9 @@ import com.finance.wealth_service.valuation.repository.AccountValuationRepositor
 import com.finance.wealth_service.visualization.dto.*;
 import org.springframework.stereotype.Service;
 import com.finance.wealth_service.exception.NotFoundException;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +25,37 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Builds the dashboard from several queries: the user, the accounts, their latest
+ * valuations, the active buckets and their goals.
+ *
+ * <p><b>Why a transaction, and why {@code REPEATABLE_READ}.</b> The numbers only
+ * add up if every query sees the same moment: an account's available amount is
+ * its balance minus the buckets that live in it, and those come from different
+ * queries. PostgreSQL reads from a snapshot of committed data, and the isolation
+ * level decides when that snapshot is taken:
+ * <ul>
+ *   <li>{@code READ COMMITTED}, the default, takes a new snapshot for every
+ *       statement. A transfer that commits between the account query and the
+ *       bucket query would be half visible: the bucket already credited, the
+ *       account not yet debited, and the available amount wrong for that request.</li>
+ *   <li>{@code REPEATABLE_READ} takes one snapshot at the first statement and keeps
+ *       it for the whole transaction, so all the queries see the same state: either
+ *       before the transfer or after it, never in between.</li>
+ * </ul>
+ * In PostgreSQL this costs next to nothing for a reader: MVCC takes no locks, so
+ * writers never wait for the dashboard, and a transaction that only reads can never
+ * hit the serialization failures {@code REPEATABLE_READ} raises for writers.
+ *
+ * <p>{@code readOnly} lets Hibernate skip flushing and dirty checking, and makes the
+ * driver open the transaction as {@code READ ONLY}, so an accidental write fails
+ * instead of slipping through.
+ *
+ * <p>The annotation sits on the public entry points the controller calls. A call
+ * from inside this class goes through {@code this}, not the Spring proxy, so
+ * annotating only {@link #accountViews} would be ignored when {@link #execute}
+ * calls it.
+ */
 @Service
 public class GetDashboardAction {
     private final UserPort users;
@@ -50,6 +83,8 @@ public class GetDashboardAction {
         return valuation.getInvestedMoney() == null ? account.getCurrentAmount() : valuation.getInvestedMoney();
     }
 
+    /** One snapshot for every query behind the dashboard; see the class comment. */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public DashboardResponse execute(AuthenticatedUser user) {
         long started = System.nanoTime();
         UUID userId = users.findUserId(user).orElseThrow(() -> {
@@ -105,6 +140,8 @@ public class GetDashboardAction {
                 bucketsByAccount.getOrDefault(a.getId(), List.of()), goalsByBucket)).toList();
     }
 
+    /** The caller's accounts on their own, outside the dashboard metrics; same snapshot rule as {@link #execute}. */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public List<AccountView> accounts(AuthenticatedUser user) {
         UUID userId = users.findUserId(user)
                 .orElseThrow(() -> new NotFoundException("User not found"));

@@ -8,8 +8,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.finance.wealth_service.exception.NotFoundException;
 
-import java.util.UUID;
-
 @Service
 public class UpdateAccountAction {
     private final AccountRepository accounts;

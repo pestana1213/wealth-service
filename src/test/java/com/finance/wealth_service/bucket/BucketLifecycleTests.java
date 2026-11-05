@@ -148,6 +148,18 @@ class BucketLifecycleTests {
     }
 
     @Test
+    void archivedBucketRefusesNewGoals() throws Exception {
+        UUID empty = emptyBucket();
+        mvc.perform(delete("/buckets/" + empty)).andExpect(status().isNoContent());
+        long before = goals.count();
+        mvc.perform(post("/goals").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"bucketId\":\"" + empty + "\",\"goalAmount\":100}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Bucket is archived"));
+        assertThat(goals.count()).isEqualTo(before);
+    }
+
+    @Test
     void historyStillNamesAnArchivedBucket() throws Exception {
         String income = "{\"toBucketId\":\"" + bucketId + "\","
                 + "\"category\":\"HOUSE\",\"transactionAmount\":10.00,\"occurredAt\":\"2026-10-01\"}";
