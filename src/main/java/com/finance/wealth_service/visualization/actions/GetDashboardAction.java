@@ -1,11 +1,14 @@
 package com.finance.wealth_service.visualization.actions;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+import java.util.Optional;
+
 import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.repository.AccountRepository;
 import com.finance.wealth_service.bucket.entity.Bucket;
 import com.finance.wealth_service.bucket.repository.BucketRepository;
 import com.finance.wealth_service.goal.repository.GoalRepository;
-import com.finance.wealth_service.account.repository.UserRepository;
+import com.finance.wealth_service.account.port.UserPort;
 import com.finance.wealth_service.observability.WealthMetrics;
 import com.finance.wealth_service.valuation.entity.AccountValuation;
 import com.finance.wealth_service.valuation.repository.AccountValuationRepository;
@@ -21,14 +24,14 @@ import java.util.stream.Collectors;
 
 @Service
 public class GetDashboardAction {
-    private final UserRepository users;
+    private final UserPort users;
     private final AccountRepository accounts;
     private final BucketRepository buckets;
     private final GoalRepository goals;
     private final AccountValuationRepository accountValuations;
     private final WealthMetrics metrics;
 
-    public GetDashboardAction(UserRepository users, AccountRepository accounts, BucketRepository buckets,
+    public GetDashboardAction(UserPort users, AccountRepository accounts, BucketRepository buckets,
                               GoalRepository goals, WealthMetrics metrics, AccountValuationRepository accountValuations) {
         this.users = users; this.accounts = accounts; this.buckets = buckets; this.goals = goals; this.metrics = metrics;
         this.accountValuations = accountValuations;
@@ -46,13 +49,15 @@ public class GetDashboardAction {
         return valuation.getInvestedMoney() == null ? account.getCurrentAmount() : valuation.getInvestedMoney();
     }
 
-    public DashboardResponse execute(UUID userId) {
+    public DashboardResponse execute(AuthenticatedUser user) {
         long started = System.nanoTime();
-        if (!users.existsById(userId)) {
+        Optional<UUID> found = users.findUserId(user);
+        if (found.isEmpty()) {
             metrics.recordDashboardFailure("not_found");
             metrics.recordDashboard("not_found", System.nanoTime() - started);
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
+        UUID userId = found.get();
         try {
             List<Account> userAccounts = accounts.findByUserIdOrderByName(userId);
             Map<UUID, AccountValuation> latest = latestValuations(userAccounts);

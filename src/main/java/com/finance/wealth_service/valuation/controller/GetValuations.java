@@ -1,5 +1,8 @@
 package com.finance.wealth_service.valuation.controller;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
 import com.finance.wealth_service.valuation.actions.ListValuationsAction;
 import com.finance.wealth_service.valuation.dto.ValuationResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,7 +23,7 @@ public class GetValuations {
 
     @GetMapping("/accounts/{accountId}/valuations")
     @Operation(summary = "List valuations", description = "Newest valuation date first.")
-    public List<ValuationResponse> list(@PathVariable UUID accountId) {
-        return action.execute(accountId).stream().map(ValuationResponse::from).toList();
+    public List<ValuationResponse> list(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID accountId) {
+        return action.execute(user, accountId).stream().map(ValuationResponse::from).toList();
     }
 }

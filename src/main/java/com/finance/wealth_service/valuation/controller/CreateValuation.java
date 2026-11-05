@@ -1,5 +1,8 @@
 package com.finance.wealth_service.valuation.controller;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
 import com.finance.wealth_service.valuation.actions.CreateValuationAction;
 import com.finance.wealth_service.valuation.dto.CreateValuationRequest;
 import com.finance.wealth_service.valuation.dto.ValuationResponse;
@@ -24,7 +27,8 @@ public class CreateValuation {
     @Operation(summary = "Record a valuation",
             description = "Records the market value of an investment account on a date. One valuation per account per date. Does not change the account balance.")
     @ResponseStatus(HttpStatus.CREATED)
-    public ValuationResponse create(@PathVariable UUID accountId, @Valid @RequestBody CreateValuationRequest request) {
-        return ValuationResponse.from(action.execute(accountId, request));
+    public ValuationResponse create(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID accountId,
+                                    @Valid @RequestBody CreateValuationRequest request) {
+        return ValuationResponse.from(action.execute(user, accountId, request));
     }
 }

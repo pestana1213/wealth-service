@@ -1,5 +1,7 @@
 package com.finance.wealth_service.valuation.actions;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+
 import com.finance.wealth_service.account.repository.AccountRepository;
 import com.finance.wealth_service.valuation.entity.AccountValuation;
 import com.finance.wealth_service.valuation.repository.AccountValuationRepository;
@@ -22,8 +24,8 @@ public class ListValuationsAction {
     }
 
     @Transactional(readOnly = true)
-    public List<AccountValuation> execute(UUID accountId) {
-        if (!accounts.existsById(accountId)) {
+    public List<AccountValuation> execute(AuthenticatedUser user, UUID accountId) {
+        if (accounts.findOwnedBy(accountId, user.subject(), user.issuer()).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found");
         }
         return valuations.findByAccountIdOrderByValuedAtDesc(accountId);

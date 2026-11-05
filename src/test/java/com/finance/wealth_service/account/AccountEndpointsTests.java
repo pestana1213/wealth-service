@@ -15,17 +15,18 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 import tools.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.util.UUID;
+import com.finance.wealth_service.support.TestUsers;
+import static com.finance.wealth_service.support.TestUsers.ISSUER;
+import static com.finance.wealth_service.support.TestUsers.signedInAs;
 import com.finance.wealth_service.auth.AuthenticatedUser;
-import com.finance.wealth_service.auth.UserAuthentication;
 import com.finance.wealth_service.auth.UserInfoClient;
 import com.finance.wealth_service.auth.UserProfile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import static org.mockito.Mockito.*;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -48,12 +49,8 @@ class AccountEndpointsTests {
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
 
-    static final String ISSUER = "https://issuer.test";
-
     static RequestPostProcessor signedIn(String subject) {
-        Jwt jwt = Jwt.withTokenValue("token-" + subject).header("alg", "none")
-                .issuer(ISSUER).subject(subject).build();
-        return authentication(new UserAuthentication(new AuthenticatedUser(ISSUER, subject), jwt));
+        return signedInAs(new AuthenticatedUser(ISSUER, subject));
     }
 
     // Registration commits its own transaction, as it does in production, where
@@ -127,60 +124,65 @@ class AccountEndpointsTests {
     }
 
     @Test
-    void createsAndPersistsAccountWithInitialBalance() throws Exception {
-        UUID userId = users.saveAndFlush(new User(null, null, "João", UUID.randomUUID() + "@example.com")).getId();
-        var result = mvc.perform(post("/accounts").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"userId\":\"" + userId + "\",\"name\":\" Bank \",\"currentAmount\":55000.25}"))
+    void createsAccountForTheSignedInUser() throws Exception {
+        User user = users.saveAndFlush(TestUsers.newUser("João"));
+        MvcResult result = mvc.perform(post("/accounts").with(signedInAs(user)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\" Bank \",\"currentAmount\":55000.25}"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.userId").value(userId.toString()))
+                .andExpect(jsonPath("$.userId").value(user.getId().toString()))
                 .andExpect(jsonPath("$.name").value("Bank"))
                 .andExpect(jsonPath("$.currentAmount").value(55000.25)).andReturn();
         UUID id = UUID.fromString(mapper.readTree(result.getResponse().getContentAsString()).get("id").asText());
         accounts.flush();
-        assertThat(accounts.findById(id).orElseThrow().getCurrentAmount()).isEqualByComparingTo("55000.25");
+        Account saved = accounts.findById(id).orElseThrow();
+        assertThat(saved.getUserId()).isEqualTo(user.getId());
+        assertThat(saved.getCurrentAmount()).isEqualByComparingTo("55000.25");
     }
 
     @Test
     void defaultsInitialBalanceToZero() throws Exception {
-        UUID userId = users.saveAndFlush(new User(null, null, "João", UUID.randomUUID() + "@example.com")).getId();
-        mvc.perform(post("/accounts").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"userId\":\"" + userId + "\",\"name\":\"Bank\"}"))
+        User user = users.saveAndFlush(TestUsers.newUser("João"));
+        mvc.perform(post("/accounts").with(signedInAs(user)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Bank\"}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.currentAmount").value(0));
     }
 
     @Test
-    void rejectsUnknownUserWithoutCreatingAccount() throws Exception {
+    void rejectsUserThatWasNeverProvisioned() throws Exception {
         long before = accounts.count();
-        mvc.perform(post("/accounts").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"userId\":\"" + UUID.randomUUID() + "\",\"name\":\"Bank\"}"))
+        mvc.perform(post("/accounts").with(signedInAs(TestUsers.stranger())).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Bank\"}"))
                 .andExpect(status().isNotFound());
         assertThat(accounts.count()).isEqualTo(before);
     }
 
     @Test
+    void rejectsAnonymousRequests() throws Exception {
+        mvc.perform(post("/accounts").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Bank\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void rejectsInvalidRequests() throws Exception {
-        long usersBefore = users.count();
+        User user = users.saveAndFlush(TestUsers.newUser("João"));
         long accountsBefore = accounts.count();
-        String userId = UUID.randomUUID().toString();
         for (String body : new String[]{
-                "{\"name\":\"Bank\"}",
-                "{\"userId\":\"invalid\",\"name\":\"Bank\"}",
-                "{\"userId\":\"" + userId + "\",\"name\":\" \"}",
-                "{\"userId\":\"" + userId + "\",\"name\":\"Bank\",\"currentAmount\":1.001}",
-                "{\"userId\":\"" + userId + "\",\"name\":\"Bank\",\"currentAmount\":100000000000000000}"}) {
-            mvc.perform(post("/accounts").contentType(MediaType.APPLICATION_JSON).content(body))
+                "{}",
+                "{\"name\":\" \"}",
+                "{\"name\":\"Bank\",\"currentAmount\":1.001}",
+                "{\"name\":\"Bank\",\"currentAmount\":100000000000000000}"}) {
+            mvc.perform(post("/accounts").with(signedInAs(user)).contentType(MediaType.APPLICATION_JSON).content(body))
                     .andExpect(status().isBadRequest());
         }
-        assertThat(users.count()).isEqualTo(usersBefore);
         assertThat(accounts.count()).isEqualTo(accountsBefore);
     }
 
     @Test
     void updatesAccountNameAndType() throws Exception {
-        UUID userId = users.saveAndFlush(new User(null, null, "João", UUID.randomUUID() + "@example.com")).getId();
-        Account account = accounts.saveAndFlush(new Account(userId, "Bank", new java.math.BigDecimal("10.00"), AccountType.SAVINGS));
-        mvc.perform(patch("/accounts/" + account.getId()).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\" Broker \",\"type\":\"INVESTMENT\"}"))
+        User user = users.saveAndFlush(TestUsers.newUser("João"));
+        Account account = accounts.saveAndFlush(new Account(user.getId(), "Bank", new BigDecimal("10.00"), AccountType.SAVINGS));
+        mvc.perform(patch("/accounts").with(signedInAs(user)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountId\":\"" + account.getId() + "\",\"name\":\" Broker \",\"type\":\"INVESTMENT\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Broker"))
                 .andExpect(jsonPath("$.type").value("INVESTMENT"))
@@ -192,10 +194,10 @@ class AccountEndpointsTests {
 
     @Test
     void partialUpdateLeavesOmittedFieldsUnchanged() throws Exception {
-        UUID userId = users.saveAndFlush(new User(null, null, "João", UUID.randomUUID() + "@example.com")).getId();
-        Account account = accounts.saveAndFlush(new Account(userId, "Bank", java.math.BigDecimal.ZERO, AccountType.SAVINGS));
-        mvc.perform(patch("/accounts/" + account.getId()).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\":\"INVESTMENT\"}"))
+        User user = users.saveAndFlush(TestUsers.newUser("João"));
+        Account account = accounts.saveAndFlush(new Account(user.getId(), "Bank", BigDecimal.ZERO, AccountType.SAVINGS));
+        mvc.perform(patch("/accounts").with(signedInAs(user)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountId\":\"" + account.getId() + "\",\"type\":\"INVESTMENT\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Bank"))
                 .andExpect(jsonPath("$.type").value("INVESTMENT"));
@@ -203,20 +205,33 @@ class AccountEndpointsTests {
 
     @Test
     void rejectsUpdateOfUnknownAccount() throws Exception {
-        mvc.perform(patch("/accounts/" + UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Bank\"}"))
+        User user = users.saveAndFlush(TestUsers.newUser("João"));
+        mvc.perform(patch("/accounts").with(signedInAs(user)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountId\":\"" + UUID.randomUUID() + "\",\"name\":\"Bank\"}"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
+    void cannotUpdateAnotherUsersAccount() throws Exception {
+        User owner = users.saveAndFlush(TestUsers.newUser("Owner"));
+        User intruder = users.saveAndFlush(TestUsers.newUser("Intruder"));
+        Account account = accounts.saveAndFlush(new Account(owner.getId(), "Bank", BigDecimal.ZERO, AccountType.SAVINGS));
+        mvc.perform(patch("/accounts").with(signedInAs(intruder)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountId\":\"" + account.getId() + "\",\"name\":\"Mine\"}"))
+                .andExpect(status().isNotFound());
+        assertThat(accounts.findById(account.getId()).orElseThrow().getName()).isEqualTo("Bank");
+    }
+
+    @Test
     void rejectsInvalidUpdateRequests() throws Exception {
-        UUID userId = users.saveAndFlush(new User(null, null, "João", UUID.randomUUID() + "@example.com")).getId();
-        Account account = accounts.saveAndFlush(new Account(userId, "Bank", java.math.BigDecimal.ZERO, AccountType.SAVINGS));
+        User user = users.saveAndFlush(TestUsers.newUser("João"));
+        Account account = accounts.saveAndFlush(new Account(user.getId(), "Bank", BigDecimal.ZERO, AccountType.SAVINGS));
+        String id = "\"accountId\":\"" + account.getId() + "\",";
         for (String body : new String[]{
-                "{\"name\":\"   \"}",
-                "{\"name\":\"" + "a".repeat(256) + "\"}",
-                "{\"type\":\"CHECKING\"}"}) {
-            mvc.perform(patch("/accounts/" + account.getId()).contentType(MediaType.APPLICATION_JSON).content(body))
+                "{" + id + "\"name\":\"   \"}",
+                "{" + id + "\"name\":\"" + "a".repeat(256) + "\"}",
+                "{" + id + "\"type\":\"CHECKING\"}"}) {
+            mvc.perform(patch("/accounts").with(signedInAs(user)).contentType(MediaType.APPLICATION_JSON).content(body))
                     .andExpect(status().isBadRequest());
         }
         assertThat(accounts.findById(account.getId()).orElseThrow().getName()).isEqualTo("Bank");

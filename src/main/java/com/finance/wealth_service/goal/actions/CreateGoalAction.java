@@ -1,5 +1,7 @@
 package com.finance.wealth_service.goal.actions;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+
 import com.finance.wealth_service.bucket.repository.BucketRepository;
 import com.finance.wealth_service.goal.dto.CreateGoalRequest;
 import com.finance.wealth_service.goal.entity.Goal;
@@ -21,8 +23,8 @@ public class CreateGoalAction {
     }
 
     @Transactional
-    public Goal execute(CreateGoalRequest request) {
-        if (!buckets.existsById(request.bucketId())) {
+    public Goal execute(AuthenticatedUser user, CreateGoalRequest request) {
+        if (buckets.findOwnedBy(request.bucketId(), user.subject(), user.issuer()).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Bucket not found");
         }
         return goals.save(new Goal(request.bucketId(),

@@ -1,5 +1,8 @@
 package com.finance.wealth_service.goal;
 
+import com.finance.wealth_service.support.TestUsers;
+import static com.finance.wealth_service.support.TestUsers.signedInAs;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import com.finance.wealth_service.account.entity.User;
 import com.finance.wealth_service.account.repository.UserRepository;
 import com.finance.wealth_service.bucket.entity.Bucket;
@@ -37,13 +40,16 @@ class GoalLifecycleTests {
     @Autowired BucketRepository buckets;
     @Autowired GoalRepository goals;
     MockMvc mvc;
+    User user;
     UUID userId;
     UUID goalId;
 
     @BeforeEach
     void setup() {
-        mvc = MockMvcBuilders.webAppContextSetup(context).build();
-        userId = users.saveAndFlush(new User(null, null, "Goals", UUID.randomUUID() + "@example.com")).getId();
+        user = users.saveAndFlush(TestUsers.newUser("Goals"));
+        userId = user.getId();
+        mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
+                .defaultRequest(get("/").with(signedInAs(user))).build();
         UUID bucketId = buckets.saveAndFlush(new Bucket(userId, "House", new BigDecimal("20.00"))).getId();
         goalId = goals.saveAndFlush(new Goal(bucketId, new BigDecimal("50000.00"), LocalDate.of(2027, 12, 31))).getId();
     }
@@ -96,7 +102,7 @@ class GoalLifecycleTests {
     @Test
     void deletedGoalLeavesTheDashboard() throws Exception {
         mvc.perform(delete("/goals/" + goalId)).andExpect(status().isNoContent());
-        mvc.perform(get("/users/" + userId + "/goals"))
+        mvc.perform(get("/goals"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.id=='" + goalId + "')]").isEmpty());
     }

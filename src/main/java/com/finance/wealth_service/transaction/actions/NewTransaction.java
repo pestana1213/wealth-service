@@ -5,13 +5,14 @@ import com.finance.wealth_service.transaction.dto.CreateTransactionRequest;
 import java.util.UUID;
 
 /**
- * A movement waiting to be posted: the client's request plus the internal link
- * that only a reversal carries. The link is not part of the request body, so a
- * client cannot forge it by posting to {@code /transactions}.
+ * A movement waiting to be posted: whose money it moves, the client's request
+ * and the internal link that only a reversal carries. The owner comes from the
+ * token and the link is not part of the request body, so a client can forge
+ * neither by posting to {@code /transactions}.
  */
-public record NewTransaction(CreateTransactionRequest request, UUID reversalOf) {
+public record NewTransaction(UUID userId, CreateTransactionRequest request, UUID reversalOf) {
 
-    public NewTransaction(CreateTransactionRequest request) {
-        this(request, null);
+    public NewTransaction(UUID userId, CreateTransactionRequest request) {
+        this(userId, request, null);
     }
 }

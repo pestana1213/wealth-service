@@ -1,5 +1,8 @@
 package com.finance.wealth_service.bucket.controller;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
 import com.finance.wealth_service.bucket.actions.CreateBucketAction;
 import com.finance.wealth_service.bucket.dto.CreateBucketRequest;
 import com.finance.wealth_service.bucket.dto.CreateBucketResponse;
@@ -22,8 +25,9 @@ public class CreateBucket {
     @PostMapping("/buckets")
     @Operation(summary = "Create a bucket", description = "Creates a bucket with an optional initial allocation.")
     @ResponseStatus(HttpStatus.CREATED)
-    public CreateBucketResponse create(@Valid @RequestBody CreateBucketRequest request) {
-        Bucket bucket = action.execute(request);
+    public CreateBucketResponse create(@AuthenticationPrincipal AuthenticatedUser user,
+                                       @Valid @RequestBody CreateBucketRequest request) {
+        Bucket bucket = action.execute(user, request);
         return new CreateBucketResponse(bucket.getId(), bucket.getUserId(), bucket.getName(), bucket.getCurrentAmount());
     }
 }

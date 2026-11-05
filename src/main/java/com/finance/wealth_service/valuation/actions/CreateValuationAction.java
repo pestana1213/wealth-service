@@ -1,5 +1,7 @@
 package com.finance.wealth_service.valuation.actions;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+
 import com.finance.wealth_service.account.AccountType;
 import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.repository.AccountRepository;
@@ -24,8 +26,8 @@ public class CreateValuationAction {
     }
 
     @Transactional
-    public AccountValuation execute(UUID accountId, CreateValuationRequest request) {
-        Account account = accounts.findById(accountId)
+    public AccountValuation execute(AuthenticatedUser user, UUID accountId, CreateValuationRequest request) {
+        Account account = accounts.findOwnedBy(accountId, user.subject(), user.issuer())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
         if (account.getType() != AccountType.INVESTMENT) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Valuations can only be recorded for investment accounts");

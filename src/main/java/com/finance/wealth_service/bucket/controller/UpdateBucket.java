@@ -1,5 +1,8 @@
 package com.finance.wealth_service.bucket.controller;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
 import com.finance.wealth_service.bucket.actions.UpdateBucketAction;
 import com.finance.wealth_service.bucket.dto.CreateBucketResponse;
 import com.finance.wealth_service.bucket.dto.UpdateBucketRequest;
@@ -27,8 +30,9 @@ public class UpdateBucket {
     @Operation(summary = "Update a bucket",
             description = "Updates the bucket name and/or corrects its allocated amount. Omitted fields are left unchanged. "
                     + "Correcting the amount records no transaction and leaves account balances untouched.")
-    public CreateBucketResponse updateBucket(@PathVariable UUID bucketId, @Valid @RequestBody UpdateBucketRequest request) {
-        Bucket bucket = action.execute(bucketId, request);
+    public CreateBucketResponse updateBucket(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID bucketId,
+                                             @Valid @RequestBody UpdateBucketRequest request) {
+        Bucket bucket = action.execute(user, bucketId, request);
         return new CreateBucketResponse(bucket.getId(), bucket.getUserId(), bucket.getName(), bucket.getCurrentAmount());
     }
 }

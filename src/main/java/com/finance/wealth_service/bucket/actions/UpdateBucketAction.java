@@ -1,5 +1,7 @@
 package com.finance.wealth_service.bucket.actions;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+
 import com.finance.wealth_service.bucket.dto.UpdateBucketRequest;
 import com.finance.wealth_service.bucket.entity.Bucket;
 import com.finance.wealth_service.bucket.repository.BucketRepository;
@@ -19,8 +21,8 @@ public class UpdateBucketAction {
     }
 
     @Transactional
-    public Bucket execute(UUID bucketId, UpdateBucketRequest request) {
-        Bucket bucket = buckets.findById(bucketId)
+    public Bucket execute(AuthenticatedUser user, UUID bucketId, UpdateBucketRequest request) {
+        Bucket bucket = buckets.findOwnedBy(bucketId, user.subject(), user.issuer())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bucket not found"));
         if (bucket.isArchived()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Bucket is archived");

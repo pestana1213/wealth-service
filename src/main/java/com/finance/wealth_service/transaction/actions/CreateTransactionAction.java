@@ -1,9 +1,11 @@
 package com.finance.wealth_service.transaction.actions;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+
 import com.finance.wealth_service.observability.WealthMetrics;
 import com.finance.wealth_service.transaction.dto.CreateTransactionRequest;
 import com.finance.wealth_service.transaction.entity.Transaction;
-import com.finance.wealth_service.account.repository.UserRepository;
+import com.finance.wealth_service.account.port.UserPort;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -19,18 +21,18 @@ import java.util.Objects;
  */
 @Service
 public class CreateTransactionAction {
-    private final UserRepository users;
+    private final UserPort users;
     private final Ledger ledger;
     private final WealthMetrics metrics;
 
-    public CreateTransactionAction(UserRepository users, Ledger ledger, WealthMetrics metrics) {
+    public CreateTransactionAction(UserPort users, Ledger ledger, WealthMetrics metrics) {
         this.users = users;
         this.ledger = ledger;
         this.metrics = metrics;
     }
 
-    public Transaction execute(CreateTransactionRequest request) {
-        return execute(new NewTransaction(request));
+    public Transaction execute(AuthenticatedUser user, CreateTransactionRequest request) {
+        return execute(new NewTransaction(users.requireUserId(user), request));
     }
 
     public Transaction execute(NewTransaction movement) {
@@ -59,7 +61,7 @@ public class CreateTransactionAction {
     }
 
     private boolean validate(CreateTransactionRequest request) {
-        if (request == null || request.userId() == null || request.type() == null) {
+        if (request == null || request.type() == null) {
             return false;
         }
 
@@ -76,7 +78,6 @@ public class CreateTransactionAction {
                         || !Objects.equals(request.sourceBucketId(), request.destinationBucketId()));
         };
 
-        return validRoute
-                && users.existsById(request.userId());
+        return validRoute;
     }
 }

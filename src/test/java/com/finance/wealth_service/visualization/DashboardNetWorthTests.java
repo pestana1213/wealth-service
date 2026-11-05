@@ -1,5 +1,8 @@
 package com.finance.wealth_service.visualization;
 
+import com.finance.wealth_service.support.TestUsers;
+import static com.finance.wealth_service.support.TestUsers.signedInAs;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import com.finance.wealth_service.account.AccountType;
 import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.entity.User;
@@ -36,14 +39,17 @@ class DashboardNetWorthTests {
     @Autowired AccountRepository accounts;
     @Autowired AccountValuationRepository valuations;
     MockMvc mvc;
+    User user;
     UUID userId;
     UUID bankId;
     UUID brokerId;
 
     @BeforeEach
     void setup() {
-        mvc = MockMvcBuilders.webAppContextSetup(context).build();
-        userId = users.saveAndFlush(new User(null, null, "Net worth", UUID.randomUUID() + "@example.com")).getId();
+        user = users.saveAndFlush(TestUsers.newUser("Net worth"));
+        userId = user.getId();
+        mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
+                .defaultRequest(get("/").with(signedInAs(user))).build();
         bankId = accounts.saveAndFlush(new Account(userId, "Bank", new BigDecimal("100.00"))).getId();
         brokerId = accounts.saveAndFlush(
                 new Account(userId, "Broker", new BigDecimal("1000.00"), AccountType.INVESTMENT)).getId();
@@ -58,7 +64,7 @@ class DashboardNetWorthTests {
     void countsAnInvestmentAccountAtItsLatestValuation() throws Exception {
         record("1100.00", "1000.00", "2026-09-01");
         record("1250.50", "1000.00", "2026-10-01");
-        mvc.perform(get("/users/" + userId + "/dashboard"))
+        mvc.perform(get("/dashboard"))
                 .andExpect(status().isOk())
                 // Contributed money is unchanged: 100 + 1000.
                 .andExpect(jsonPath("$.totalAmount").value(1100.00))
@@ -69,7 +75,7 @@ class DashboardNetWorthTests {
 
     @Test
     void countsAnAccountWithoutValuationAtItsBalance() throws Exception {
-        mvc.perform(get("/users/" + userId + "/dashboard"))
+        mvc.perform(get("/dashboard"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.marketAmount").value(1100.00))
                 .andExpect(jsonPath("$.marketGain").value(0));
@@ -78,7 +84,7 @@ class DashboardNetWorthTests {
     @Test
     void reportsALossWhenTheMarketIsBelowWhatWentIn() throws Exception {
         record("800.00", "1000.00", "2026-10-01");
-        mvc.perform(get("/users/" + userId + "/dashboard"))
+        mvc.perform(get("/dashboard"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.marketAmount").value(900.00))
                 .andExpect(jsonPath("$.marketGain").value(-200.00));
@@ -87,7 +93,7 @@ class DashboardNetWorthTests {
     @Test
     void showsTheLatestValueAndInvestedAmountOnTheAccountItself() throws Exception {
         record("1250.50", "1000.00", "2026-10-01");
-        mvc.perform(get("/users/" + userId + "/dashboard"))
+        mvc.perform(get("/dashboard"))
                 .andExpect(status().isOk())
                 // Ordered by name: Bank, then Broker.
                 .andExpect(jsonPath("$.accounts[0].id").value(bankId.toString()))

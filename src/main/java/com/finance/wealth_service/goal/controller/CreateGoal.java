@@ -1,5 +1,8 @@
 package com.finance.wealth_service.goal.controller;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
 import com.finance.wealth_service.goal.actions.CreateGoalAction;
 import com.finance.wealth_service.goal.dto.CreateGoalRequest;
 import com.finance.wealth_service.goal.dto.CreateGoalResponse;
@@ -22,8 +25,9 @@ public class CreateGoal {
     @PostMapping("/goals")
     @Operation(summary = "Create a goal", description = "Creates a target amount for an existing bucket.")
     @ResponseStatus(HttpStatus.CREATED)
-    public CreateGoalResponse create(@Valid @RequestBody CreateGoalRequest request) {
-        Goal goal = action.execute(request);
+    public CreateGoalResponse create(@AuthenticationPrincipal AuthenticatedUser user,
+                                     @Valid @RequestBody CreateGoalRequest request) {
+        Goal goal = action.execute(user, request);
         return new CreateGoalResponse(goal.getId(), goal.getBucketId(), goal.getGoalAmount(), goal.getGoalObjective());
     }
 }

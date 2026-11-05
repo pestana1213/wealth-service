@@ -1,5 +1,7 @@
 package com.finance.wealth_service.bucket.actions;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+
 import com.finance.wealth_service.bucket.entity.Bucket;
 import com.finance.wealth_service.bucket.repository.BucketRepository;
 import org.springframework.http.HttpStatus;
@@ -24,8 +26,8 @@ public class ArchiveBucketAction {
      * would silently vanish from the allocated total.
      */
     @Transactional
-    public void execute(UUID bucketId) {
-        Bucket bucket = buckets.findById(bucketId)
+    public void execute(AuthenticatedUser user, UUID bucketId) {
+        Bucket bucket = buckets.findOwnedBy(bucketId, user.subject(), user.issuer())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bucket not found"));
         if (bucket.getCurrentAmount().compareTo(BigDecimal.ZERO) != 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,

@@ -1,5 +1,9 @@
 package com.finance.wealth_service.transaction;
 
+import com.finance.wealth_service.support.TestUsers;
+import static com.finance.wealth_service.support.TestUsers.signedInAs;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.entity.User;
 import com.finance.wealth_service.account.repository.AccountRepository;
@@ -39,20 +43,23 @@ class TransactionValidationTests {
     @Autowired AccountRepository accounts;
     @Autowired BucketRepository buckets;
     MockMvc mvc;
+    User user;
     UUID userId;
     UUID accountId;
 
     @BeforeEach
     void setup() {
-        mvc = MockMvcBuilders.webAppContextSetup(context).build();
-        userId = users.saveAndFlush(new User(null, null, "Validation", UUID.randomUUID() + "@example.com")).getId();
+        user = users.saveAndFlush(TestUsers.newUser("Validation"));
+        userId = user.getId();
+        mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
+                .defaultRequest(get("/").with(signedInAs(user))).build();
         accountId = accounts.saveAndFlush(new Account(userId, "Bank", new BigDecimal("100.00"))).getId();
         buckets.saveAndFlush(new Bucket(userId, "House", new BigDecimal("20.00")));
     }
 
     /** A valid INCOME payload with the amount, date and description fields supplied by the caller. */
     private String income(String fields) {
-        return "{\"userId\":\"" + userId + "\",\"destinationAccountId\":\"" + accountId + "\","
+        return "{\"destinationAccountId\":\"" + accountId + "\","
                 + "\"type\":\"INCOME\",\"category\":\"OTHER\"," + fields + "}";
     }
 
@@ -95,7 +102,7 @@ class TransactionValidationTests {
 
     @Test
     void rejectsMissingCategory() throws Exception {
-        String body = "{\"userId\":\"" + userId + "\",\"destinationAccountId\":\"" + accountId + "\","
+        String body = "{\"destinationAccountId\":\"" + accountId + "\","
                 + "\"type\":\"INCOME\",\"transactionAmount\":10.00,\"occurredAt\":\"2026-10-01\"}";
         expectFieldError(body, "category");
     }

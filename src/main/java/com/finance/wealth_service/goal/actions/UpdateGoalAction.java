@@ -1,5 +1,7 @@
 package com.finance.wealth_service.goal.actions;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+
 import com.finance.wealth_service.goal.dto.UpdateGoalRequest;
 import com.finance.wealth_service.goal.entity.Goal;
 import com.finance.wealth_service.goal.repository.GoalRepository;
@@ -19,8 +21,8 @@ public class UpdateGoalAction {
     }
 
     @Transactional
-    public Goal execute(UUID goalId, UpdateGoalRequest request) {
-        Goal goal = goals.findById(goalId)
+    public Goal execute(AuthenticatedUser user, UUID goalId, UpdateGoalRequest request) {
+        Goal goal = goals.findOwnedBy(goalId, user.subject(), user.issuer())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Goal not found"));
         if (request.goalAmount() != null) {
             goal.setGoalAmount(request.goalAmount());

@@ -1,5 +1,9 @@
 package com.finance.wealth_service.exception;
 
+import com.finance.wealth_service.support.TestUsers;
+import static com.finance.wealth_service.support.TestUsers.signedInAs;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +30,9 @@ class GlobalExceptionHandlerTests {
 
     @BeforeEach
     void setup() {
-        mvc = MockMvcBuilders.webAppContextSetup(context).build();
+        // Any signed-in identity reaches the handlers; none of these requests needs a provisioned user.
+        mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
+                .defaultRequest(get("/").with(signedInAs(TestUsers.stranger()))).build();
     }
 
     @Test
@@ -36,13 +42,19 @@ class GlobalExceptionHandlerTests {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.detail").value("Request validation failed"))
-                .andExpect(jsonPath("$.errors.userId").exists())
                 .andExpect(jsonPath("$.errors.name").exists());
     }
 
     @Test
+    void anonymousRequestIsUnauthorized() throws Exception {
+        MockMvc anonymous = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        anonymous.perform(get("/dashboard")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void responseStatusExceptionKeepsReason() throws Exception {
-        mvc.perform(patch("/accounts/" + UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mvc.perform(patch("/accounts").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountId\":\"" + UUID.randomUUID() + "\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.detail").value("Account not found"));
@@ -50,7 +62,7 @@ class GlobalExceptionHandlerTests {
 
     @Test
     void malformedBodyDoesNotLeakParserDetails() throws Exception {
-        mvc.perform(patch("/accounts/" + UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(patch("/accounts").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"CHECKING\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("Malformed or unreadable request body"))
@@ -59,8 +71,8 @@ class GlobalExceptionHandlerTests {
 
     @Test
     void invalidPathVariableIsBadRequest() throws Exception {
-        mvc.perform(patch("/accounts/not-a-uuid").contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mvc.perform(patch("/buckets/not-a-uuid").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").value("Invalid value for parameter 'accountId'"));
+                .andExpect(jsonPath("$.detail").value("Invalid value for parameter 'bucketId'"));
     }
 }

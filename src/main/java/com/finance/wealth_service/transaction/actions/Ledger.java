@@ -57,32 +57,32 @@ public class Ledger {
     public Transaction post(NewTransaction movement) {
         CreateTransactionRequest request = movement.request();
         return transactionTemplate.execute(_ -> {
-            Map<UUID, Account> lockedAccounts = lockAccounts(request);
-            Map<UUID, Bucket> lockedBuckets = lockBuckets(request);
+            Map<UUID, Account> lockedAccounts = lockAccounts(movement.userId(), request);
+            Map<UUID, Bucket> lockedBuckets = lockBuckets(movement.userId(), request);
             applyToAccounts(request, lockedAccounts);
             applyToBuckets(request, lockedBuckets);
             return transactions.saveAndFlush(new Transaction(
-                    request.userId(), request.providerAccountId(), request.destinationAccountId(),
+                    movement.userId(), request.providerAccountId(), request.destinationAccountId(),
                     request.sourceBucketId(), request.destinationBucketId(), request.transactionAmount(),
                     request.type(), request.category(), request.occurredAt(), request.description(),
                     movement.reversalOf()));
         });
     }
 
-    private Map<UUID, Account> lockAccounts(CreateTransactionRequest request) {
+    private Map<UUID, Account> lockAccounts(UUID userId, CreateTransactionRequest request) {
         Map<UUID, Account> locked = new HashMap<>();
         Stream.of(request.providerAccountId(), request.destinationAccountId())
                 .filter(Objects::nonNull).distinct().sorted()
-                .forEach(id -> locked.put(id, accounts.findByIdAndUserIdForUpdate(id, request.userId())
+                .forEach(id -> locked.put(id, accounts.findByIdAndUserIdForUpdate(id, userId)
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account not found"))));
         return locked;
     }
 
-    private Map<UUID, Bucket> lockBuckets(CreateTransactionRequest request) {
+    private Map<UUID, Bucket> lockBuckets(UUID userId, CreateTransactionRequest request) {
         Map<UUID, Bucket> locked = new HashMap<>();
         Stream.of(request.sourceBucketId(), request.destinationBucketId())
                 .filter(Objects::nonNull).distinct().sorted()
-                .forEach(id -> locked.put(id, buckets.findByIdAndUserIdForUpdate(id, request.userId())
+                .forEach(id -> locked.put(id, buckets.findByIdAndUserIdForUpdate(id, userId)
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bucket not found"))));
         return locked;
     }
