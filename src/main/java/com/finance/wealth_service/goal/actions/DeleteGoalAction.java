@@ -1,5 +1,8 @@
 package com.finance.wealth_service.goal.actions;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+import com.finance.wealth_service.goal.entity.Goal;
+
 import com.finance.wealth_service.goal.repository.GoalRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -18,10 +21,9 @@ public class DeleteGoalAction {
 
     /** Nothing references a goal and it holds no money, so the row is removed outright. */
     @Transactional
-    public void execute(UUID goalId) {
-        if (!goals.existsById(goalId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Goal not found");
-        }
-        goals.deleteById(goalId);
+    public void execute(AuthenticatedUser user, UUID goalId) {
+        Goal goal = goals.findOwnedBy(goalId, user.subject(), user.issuer())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Goal not found"));
+        goals.delete(goal);
     }
 }

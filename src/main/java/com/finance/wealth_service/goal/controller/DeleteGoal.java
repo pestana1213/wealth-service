@@ -1,5 +1,8 @@
 package com.finance.wealth_service.goal.controller;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
 import com.finance.wealth_service.goal.actions.DeleteGoalAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,7 +26,7 @@ public class DeleteGoal {
     @DeleteMapping("/goals/{goalId}")
     @Operation(summary = "Delete a goal", description = "Removes the goal. The bucket and its allocation are untouched.")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteGoal(@PathVariable UUID goalId) {
-        action.execute(goalId);
+    public void deleteGoal(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID goalId) {
+        action.execute(user, goalId);
     }
 }

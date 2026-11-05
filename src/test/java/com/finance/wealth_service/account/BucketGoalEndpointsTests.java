@@ -16,6 +16,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 import tools.jackson.databind.ObjectMapper;
 import java.util.UUID;
+import com.finance.wealth_service.support.TestUsers;
+import static com.finance.wealth_service.support.TestUsers.signedInAs;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,21 +35,24 @@ class BucketGoalEndpointsTests {
     @Autowired GoalRepository goals;
     @Autowired ObjectMapper mapper;
     MockMvc mvc;
+    User user;
 
     @BeforeEach
     void setup() {
-        mvc = MockMvcBuilders.webAppContextSetup(context).build();
+        user = users.saveAndFlush(TestUsers.newUser("João"));
+        mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
+                .defaultRequest(get("/").with(signedInAs(user))).build();
     }
 
     UUID createUser() {
-        return users.saveAndFlush(new User("João", UUID.randomUUID() + "@example.com")).getId();
+        return user.getId();
     }
 
     @Test
     void createsBucketWithInitialBalance() throws Exception {
         UUID userId = createUser();
         var result = mvc.perform(post("/buckets").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"userId\":\"" + userId + "\",\"name\":\" House \",\"currentAmount\":27000.50}"))
+                        .content("{\"name\":\" House \",\"currentAmount\":27000.50}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.name").value("House"))
@@ -60,7 +67,7 @@ class BucketGoalEndpointsTests {
         UUID userId = createUser();
         for (String amount : new String[]{"", ",\"currentAmount\":null"}) {
             mvc.perform(post("/buckets").contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"userId\":\"" + userId + "\",\"name\":\"Emergency\"" + amount + "}"))
+                            .content("{\"name\":\"Emergency\"" + amount + "}"))
                     .andExpect(status().isCreated()).andExpect(jsonPath("$.currentAmount").value(0));
         }
     }
@@ -86,8 +93,8 @@ class BucketGoalEndpointsTests {
     void rejectsMissingParentsWithoutSaving() throws Exception {
         long bucketCount = buckets.count();
         long goalCount = goals.count();
-        mvc.perform(post("/buckets").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"userId\":\"" + UUID.randomUUID() + "\",\"name\":\"House\"}"))
+        mvc.perform(post("/buckets").with(signedInAs(TestUsers.stranger())).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"House\"}"))
                 .andExpect(status().isNotFound());
         mvc.perform(post("/goals").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"bucketId\":\"" + UUID.randomUUID() + "\",\"goalAmount\":100}"))
@@ -97,15 +104,25 @@ class BucketGoalEndpointsTests {
     }
 
     @Test
+    void cannotCreateGoalOnAnotherUsersBucket() throws Exception {
+        User other = users.saveAndFlush(TestUsers.newUser("Other"));
+        UUID foreignBucket = buckets.saveAndFlush(new Bucket(other.getId(), "Theirs")).getId();
+        long before = goals.count();
+        mvc.perform(post("/goals").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"bucketId\":\"" + foreignBucket + "\",\"goalAmount\":100}"))
+                .andExpect(status().isNotFound());
+        assertThat(goals.count()).isEqualTo(before);
+    }
+
+    @Test
     void rejectsInvalidBucketRequests() throws Exception {
-        String userId = createUser().toString();
         long before = buckets.count();
-        for (String body : new String[]{"{}", "{\"userId\":\"bad\",\"name\":\"House\"}",
-                "{\"userId\":\"" + userId + "\",\"name\":\" \"}",
-                "{\"userId\":\"" + userId + "\",\"name\":\"" + "a".repeat(256) + "\"}",
-                "{\"userId\":\"" + userId + "\",\"name\":\"House\",\"currentAmount\":-1}",
-                "{\"userId\":\"" + userId + "\",\"name\":\"House\",\"currentAmount\":1.001}",
-                "{\"userId\":\"" + userId + "\",\"name\":\"House\",\"currentAmount\":100000000000000000}"}) {
+        for (String body : new String[]{"{}",
+                "{\"name\":\" \"}",
+                "{\"name\":\"" + "a".repeat(256) + "\"}",
+                "{\"name\":\"House\",\"currentAmount\":-1}",
+                "{\"name\":\"House\",\"currentAmount\":1.001}",
+                "{\"name\":\"House\",\"currentAmount\":100000000000000000}"}) {
             mvc.perform(post("/buckets").contentType(MediaType.APPLICATION_JSON).content(body))
                     .andExpect(status().isBadRequest());
         }

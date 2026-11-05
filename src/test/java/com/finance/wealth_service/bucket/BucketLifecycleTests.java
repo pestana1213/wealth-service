@@ -1,5 +1,8 @@
 package com.finance.wealth_service.bucket;
 
+import com.finance.wealth_service.support.TestUsers;
+import static com.finance.wealth_service.support.TestUsers.signedInAs;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.entity.User;
 import com.finance.wealth_service.account.repository.AccountRepository;
@@ -41,14 +44,17 @@ class BucketLifecycleTests {
     @Autowired BucketRepository buckets;
     @Autowired GoalRepository goals;
     MockMvc mvc;
+    User user;
     UUID userId;
     UUID accountId;
     UUID bucketId;
 
     @BeforeEach
     void setup() {
-        mvc = MockMvcBuilders.webAppContextSetup(context).build();
-        userId = users.saveAndFlush(new User("Lifecycle", UUID.randomUUID() + "@example.com")).getId();
+        user = users.saveAndFlush(TestUsers.newUser("Lifecycle"));
+        userId = user.getId();
+        mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
+                .defaultRequest(get("/").with(signedInAs(user))).build();
         accountId = accounts.saveAndFlush(new Account(userId, "Bank", new BigDecimal("100.00"))).getId();
         bucketId = buckets.saveAndFlush(new Bucket(userId, "House", new BigDecimal("20.00"))).getId();
     }
@@ -112,7 +118,7 @@ class BucketLifecycleTests {
     void archivedBucketLeavesTheDashboard() throws Exception {
         UUID empty = emptyBucket();
         mvc.perform(delete("/buckets/" + empty)).andExpect(status().isNoContent());
-        mvc.perform(get("/users/" + userId + "/dashboard"))
+        mvc.perform(get("/dashboard"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.buckets[?(@.id=='" + empty + "')]").isEmpty())
                 .andExpect(jsonPath("$.buckets[?(@.id=='" + bucketId + "')]").isNotEmpty())
@@ -124,7 +130,7 @@ class BucketLifecycleTests {
         UUID empty = emptyBucket();
         goals.saveAndFlush(new Goal(empty, new BigDecimal("500.00"), LocalDate.of(2027, 12, 31)));
         mvc.perform(delete("/buckets/" + empty)).andExpect(status().isNoContent());
-        mvc.perform(get("/users/" + userId + "/goals"))
+        mvc.perform(get("/goals"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.bucketId=='" + empty + "')]").isEmpty());
     }
@@ -134,7 +140,7 @@ class BucketLifecycleTests {
         UUID empty = emptyBucket();
         mvc.perform(delete("/buckets/" + empty)).andExpect(status().isNoContent());
         mvc.perform(post("/transactions").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"userId\":\"" + userId + "\",\"destinationAccountId\":\"" + accountId + "\","
+                        .content("{\"destinationAccountId\":\"" + accountId + "\","
                                 + "\"destinationBucketId\":\"" + empty + "\",\"type\":\"INCOME\","
                                 + "\"category\":\"OTHER\",\"transactionAmount\":10.00,\"occurredAt\":\"2026-10-01\"}"))
                 .andExpect(status().isBadRequest());
@@ -142,7 +148,7 @@ class BucketLifecycleTests {
 
     @Test
     void historyStillNamesAnArchivedBucket() throws Exception {
-        String income = "{\"userId\":\"" + userId + "\",\"destinationAccountId\":\"" + accountId + "\","
+        String income = "{\"destinationAccountId\":\"" + accountId + "\","
                 + "\"destinationBucketId\":\"" + bucketId + "\",\"type\":\"INCOME\","
                 + "\"category\":\"HOUSE\",\"transactionAmount\":10.00,\"occurredAt\":\"2026-10-01\"}";
         mvc.perform(post("/transactions").contentType(MediaType.APPLICATION_JSON).content(income))
@@ -151,7 +157,7 @@ class BucketLifecycleTests {
                 .content("{\"currentAmount\":0}")).andExpect(status().isOk());
         mvc.perform(delete("/buckets/" + bucketId)).andExpect(status().isNoContent());
 
-        mvc.perform(get("/transactions").param("userId", userId.toString()))
+        mvc.perform(get("/transactions"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].destination.name").value("House"));
     }

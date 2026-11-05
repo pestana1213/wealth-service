@@ -1,5 +1,7 @@
 package com.finance.wealth_service.transaction.actions;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+
 import com.finance.wealth_service.transaction.dto.CreateTransactionRequest;
 import com.finance.wealth_service.transaction.entity.Transaction;
 import com.finance.wealth_service.transaction.entity.TransactionType;
@@ -27,8 +29,8 @@ public class ReverseTransactionAction {
         this.createTransaction = createTransaction;
     }
 
-    public Transaction execute(UUID transactionId) {
-        Transaction original = transactions.findById(transactionId)
+    public Transaction execute(AuthenticatedUser user, UUID transactionId) {
+        Transaction original = transactions.findOwnedBy(transactionId, user.subject(), user.issuer())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction not found"));
         if (original.getReversalOf() != null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -37,7 +39,7 @@ public class ReverseTransactionAction {
         if (transactions.existsByReversalOf(transactionId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Transaction was already reversed");
         }
-        return createTransaction.execute(new NewTransaction(mirrorOf(original), transactionId));
+        return createTransaction.execute(new NewTransaction(user, mirrorOf(original), transactionId));
     }
 
     /**
@@ -53,7 +55,6 @@ public class ReverseTransactionAction {
             case TRANSFER -> TransactionType.TRANSFER;
         };
         return new CreateTransactionRequest(
-                original.getUserId(),
                 original.getDestinationAccountId(),
                 original.getProviderAccountId(),
                 original.getDestinationBucketId(),

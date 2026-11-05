@@ -1,5 +1,8 @@
 package com.finance.wealth_service.transaction.controller;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
 import com.finance.wealth_service.transaction.actions.CreateTransactionAction;
 import com.finance.wealth_service.transaction.dto.CreateTransactionRequest;
 import com.finance.wealth_service.transaction.dto.CreateTransactionResponse;
@@ -22,8 +25,9 @@ public class CreateTransaction {
     @PostMapping("/transactions")
     @Operation(summary = "Create a transaction", description = "Records an income, expense or transfer and updates affected balances.")
     @ResponseStatus(HttpStatus.CREATED)
-    public CreateTransactionResponse create(@Valid @RequestBody CreateTransactionRequest request) {
-        Transaction transaction = action.execute(request);
+    public CreateTransactionResponse create(@AuthenticationPrincipal AuthenticatedUser user,
+                                            @Valid @RequestBody CreateTransactionRequest request) {
+        Transaction transaction = action.execute(user, request);
         return new CreateTransactionResponse(
                 transaction.getId(), transaction.getUserId(), transaction.getProviderAccountId(),
                 transaction.getDestinationAccountId(), transaction.getSourceBucketId(),

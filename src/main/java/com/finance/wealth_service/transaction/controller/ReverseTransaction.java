@@ -1,5 +1,8 @@
 package com.finance.wealth_service.transaction.controller;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
 import com.finance.wealth_service.transaction.actions.ReverseTransactionAction;
 import com.finance.wealth_service.transaction.dto.CreateTransactionResponse;
 import com.finance.wealth_service.transaction.entity.Transaction;
@@ -27,8 +30,8 @@ public class ReverseTransaction {
             description = "Records a compensating transaction that undoes the balance effect of the original and links "
                     + "back to it. The original is kept. Reversing twice, or reversing a reversal, returns 409.")
     @ResponseStatus(HttpStatus.CREATED)
-    public CreateTransactionResponse reverse(@PathVariable UUID transactionId) {
-        Transaction transaction = action.execute(transactionId);
+    public CreateTransactionResponse reverse(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID transactionId) {
+        Transaction transaction = action.execute(user, transactionId);
         return new CreateTransactionResponse(
                 transaction.getId(), transaction.getUserId(), transaction.getProviderAccountId(),
                 transaction.getDestinationAccountId(), transaction.getSourceBucketId(),

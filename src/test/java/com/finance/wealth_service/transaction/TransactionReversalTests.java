@@ -1,5 +1,8 @@
 package com.finance.wealth_service.transaction;
 
+import com.finance.wealth_service.support.TestUsers;
+import static com.finance.wealth_service.support.TestUsers.signedInAs;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.entity.User;
 import com.finance.wealth_service.account.repository.AccountRepository;
@@ -41,6 +44,7 @@ class TransactionReversalTests {
     @Autowired BucketRepository buckets;
     @Autowired ObjectMapper mapper;
     MockMvc mvc;
+    User user;
     UUID userId;
     UUID bankId;
     UUID brokerId;
@@ -49,8 +53,10 @@ class TransactionReversalTests {
 
     @BeforeEach
     void setup() {
-        mvc = MockMvcBuilders.webAppContextSetup(context).build();
-        userId = users.saveAndFlush(new User("Reversal", UUID.randomUUID() + "@example.com")).getId();
+        user = users.saveAndFlush(TestUsers.newUser("Reversal"));
+        userId = user.getId();
+        mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
+                .defaultRequest(get("/").with(signedInAs(user))).build();
         bankId = accounts.saveAndFlush(new Account(userId, "Bank", new BigDecimal("100.00"))).getId();
         brokerId = accounts.saveAndFlush(new Account(userId, "Broker", BigDecimal.ZERO)).getId();
         houseId = buckets.saveAndFlush(new Bucket(userId, "House", new BigDecimal("20.00"))).getId();
@@ -58,7 +64,7 @@ class TransactionReversalTests {
     }
 
     private UUID create(String fields) throws Exception {
-        String body = "{\"userId\":\"" + userId + "\",\"category\":\"OTHER\",\"transactionAmount\":10.00,"
+        String body = "{\"category\":\"OTHER\",\"transactionAmount\":10.00,"
                 + "\"occurredAt\":\"2026-10-01\"," + fields + "}";
         MvcResult result = mvc.perform(post("/transactions").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated()).andReturn();
@@ -122,7 +128,7 @@ class TransactionReversalTests {
     void historyKeepsBothTheOriginalAndTheReversal() throws Exception {
         UUID original = income();
         mvc.perform(post("/transactions/" + original + "/reversal")).andExpect(status().isCreated());
-        mvc.perform(get("/transactions").param("userId", userId.toString()))
+        mvc.perform(get("/transactions"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2));
     }
@@ -131,7 +137,7 @@ class TransactionReversalTests {
     void historyTellsTheReversalApartFromTheOriginal() throws Exception {
         UUID original = income();
         mvc.perform(post("/transactions/" + original + "/reversal")).andExpect(status().isCreated());
-        mvc.perform(get("/transactions").param("userId", userId.toString()))
+        mvc.perform(get("/transactions"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].reversalOf").value(original.toString()))
                 .andExpect(jsonPath("$[1].transactionId").value(original.toString()))

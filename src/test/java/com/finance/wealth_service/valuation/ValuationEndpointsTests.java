@@ -1,5 +1,8 @@
 package com.finance.wealth_service.valuation;
 
+import com.finance.wealth_service.support.TestUsers;
+import static com.finance.wealth_service.support.TestUsers.signedInAs;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import com.finance.wealth_service.account.AccountType;
 import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.entity.User;
@@ -33,13 +36,16 @@ class ValuationEndpointsTests {
     @Autowired AccountRepository accounts;
     @Autowired AccountValuationRepository valuations;
     MockMvc mvc;
+    User user;
     UUID investmentId;
     UUID savingsId;
 
     @BeforeEach
     void setup() {
-        mvc = MockMvcBuilders.webAppContextSetup(context).build();
-        UUID userId = users.saveAndFlush(new User("João", UUID.randomUUID() + "@example.com")).getId();
+        user = users.saveAndFlush(TestUsers.newUser("João"));
+        UUID userId = user.getId();
+        mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
+                .defaultRequest(get("/").with(signedInAs(user))).build();
         investmentId = accounts.saveAndFlush(new Account(userId, "Broker", new BigDecimal("1000.00"), AccountType.INVESTMENT)).getId();
         savingsId = accounts.saveAndFlush(new Account(userId, "Bank", BigDecimal.ZERO, AccountType.SAVINGS)).getId();
     }

@@ -1,5 +1,8 @@
 package com.finance.wealth_service.bucket.controller;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
 import com.finance.wealth_service.bucket.actions.ArchiveBucketAction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,7 +28,7 @@ public class ArchiveBucket {
             description = "Hides the bucket from the dashboard and refuses it in new transactions, keeping the row so the "
                     + "history still names it. The bucket must hold no money: a non-zero balance returns 409.")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void archiveBucket(@PathVariable UUID bucketId) {
-        action.execute(bucketId);
+    public void archiveBucket(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID bucketId) {
+        action.execute(user, bucketId);
     }
 }

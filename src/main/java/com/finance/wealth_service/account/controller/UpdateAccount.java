@@ -4,9 +4,11 @@ import com.finance.wealth_service.account.actions.UpdateAccountAction;
 import com.finance.wealth_service.account.dto.CreateAccountResponse;
 import com.finance.wealth_service.account.dto.UpdateAccountRequest;
 import com.finance.wealth_service.account.entity.Account;
+import com.finance.wealth_service.auth.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,11 +25,11 @@ public class UpdateAccount {
         this.action = action;
     }
 
-    @PatchMapping("/accounts/{accountId}")
+    @PatchMapping("/accounts")
     @Operation(summary = "Update an account",
             description = "Updates the account name and/or type. Omitted fields are left unchanged. Balance changes go through transactions.")
-    public CreateAccountResponse updateAccount(@PathVariable UUID accountId, @Valid @RequestBody UpdateAccountRequest request) {
-        Account account = action.execute(accountId, request);
+    public CreateAccountResponse updateAccount(@AuthenticationPrincipal AuthenticatedUser user, @Valid @RequestBody UpdateAccountRequest request) {
+        Account account = action.execute(user, request);
         return new CreateAccountResponse(account.getId(), account.getUserId(), account.getName(),
                 account.getCurrentAmount(), account.getType());
     }

@@ -1,7 +1,6 @@
 package com.finance.wealth_service.account.entity;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.*;
 import java.util.UUID;
 
 @Entity
@@ -12,33 +11,32 @@ public class User {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @NotBlank
+    private String issuer;
+
+    private String subject;
+
     @Column(nullable = false)
     private String name;
 
-    @NotBlank
-    @Email
-    @Size(max = 254)
-    @Column(length = 254)
     private String email;
 
     protected User() {
     }
 
-    public User(String name, String email) {
+    public User(String issuer, String subject, String name, String email) {
+        this.issuer = issuer;
+        this.subject = subject;
         this.name = name;
-        this.email = java.util.Objects.requireNonNull(email).strip().toLowerCase(java.util.Locale.ROOT);
+        this.email = email;
     }
 
-    public UUID getId() {
-        return id;
-    }
+    public UUID getId() { return id; }
 
-    public String getName() {
-        return name;
-    }
+    public String getIssuer() { return issuer; }
 
-    public String getEmail() {
-        return email;
-    }
+    public String getSubject() { return subject; }
+
+    public String getName() { return name; }
+
+    public String getEmail() { return email; }
 }
