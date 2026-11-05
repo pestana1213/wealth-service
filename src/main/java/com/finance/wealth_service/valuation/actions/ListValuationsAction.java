@@ -5,10 +5,9 @@ import com.finance.wealth_service.auth.AuthenticatedUser;
 import com.finance.wealth_service.account.repository.AccountRepository;
 import com.finance.wealth_service.valuation.entity.AccountValuation;
 import com.finance.wealth_service.valuation.repository.AccountValuationRepository;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
+import com.finance.wealth_service.exception.NotFoundException;
 
 import java.util.List;
 import java.util.UUID;
@@ -26,7 +25,7 @@ public class ListValuationsAction {
     @Transactional(readOnly = true)
     public List<AccountValuation> execute(AuthenticatedUser user, UUID accountId) {
         if (accounts.findOwnedBy(accountId, user.subject(), user.issuer()).isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found");
+            throw new NotFoundException("Account not found");
         }
         return valuations.findByAccountIdOrderByValuedAtDesc(accountId);
     }

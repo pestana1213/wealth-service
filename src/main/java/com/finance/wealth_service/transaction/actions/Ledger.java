@@ -10,10 +10,10 @@ import com.finance.wealth_service.transaction.dto.Leg;
 import com.finance.wealth_service.transaction.dto.Movement;
 import com.finance.wealth_service.transaction.entity.Transaction;
 import com.finance.wealth_service.transaction.repository.TransactionRepository;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.web.server.ResponseStatusException;
+import com.finance.wealth_service.exception.ConflictException;
+import com.finance.wealth_service.exception.InvalidRequestException;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -77,7 +77,7 @@ public class Ledger {
     private static UUID ownerOf(Map<UUID, Account> lockedAccounts) {
         return lockedAccounts.values().stream().findFirst()
                 .map(Account::getUserId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "A movement needs an account"));
+                .orElseThrow(() -> new InvalidRequestException("A movement needs an account"));
     }
 
     private Map<UUID, Account> lockAccounts(Movement movement) {
@@ -86,7 +86,7 @@ public class Ledger {
         Stream.of(accountOf(movement.from()), accountOf(movement.to()))
                 .filter(Objects::nonNull).distinct().sorted()
                 .forEach(id -> locked.put(id, accounts.findOwnedByForUpdate(id, owner.subject(), owner.issuer())
-                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account not found"))));
+                        .orElseThrow(() -> new InvalidRequestException("Account not found"))));
         return locked;
     }
 
@@ -96,7 +96,7 @@ public class Ledger {
         Stream.of(bucketOf( movement.from()), bucketOf(movement.to()))
                 .filter(Objects::nonNull).distinct().sorted()
                 .forEach(id -> locked.put(id, buckets.findOwnedByForUpdate(id, owner.subject(), owner.issuer())
-                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bucket not found"))));
+                        .orElseThrow(() -> new InvalidRequestException("Bucket not found"))));
         return locked;
     }
 
@@ -129,7 +129,7 @@ public class Ledger {
         if (source != null) {
             BigDecimal left = source.getCurrentAmount().subtract(movement.amount());
             if (left.compareTo(BigDecimal.ZERO) < 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                throw new InvalidRequestException(
                         "Final Value from source bucket can't be less then 0");
             }
             source.setCurrentAmount(left);
@@ -149,7 +149,7 @@ public class Ledger {
         if (leg == null || leg.bucketId() == null) return;
         Bucket bucket = locked.get(leg.bucketId());
         if (!bucket.getAccountId().equals(leg.accountId())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
+            throw new ConflictException(
                     "Bucket is no longer in that account; retry");
         }
     }

@@ -20,8 +20,8 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
+import com.finance.wealth_service.exception.InvalidRequestException;
+import com.finance.wealth_service.exception.WealthException;
 import org.springframework.transaction.support.TransactionTemplate;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -122,8 +122,7 @@ class TransactionActionIntegrationTests {
     @Test
     void anotherCallerCannotMoveTheseAccounts() {
         assertThatThrownBy(() -> action.execute(TestUsers.stranger(), request(bucketId, TransactionCategory.HOUSE)))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+                .isInstanceOf(InvalidRequestException.class);
         assertThat(accounts.findById(accountId).orElseThrow().getCurrentAmount()).isEqualByComparingTo("100.00");
         assertThat(buckets.findById(bucketId).orElseThrow().getCurrentAmount()).isEqualByComparingTo("20.00");
         assertThat(transactionCount()).isZero();
@@ -142,7 +141,7 @@ class TransactionActionIntegrationTests {
         Bucket foreign = buckets.saveAndFlush(new Bucket(other.getId(), foreignAccount.getId(), "Other"));
         try {
             assertThatThrownBy(() -> action.execute(caller, request(foreign.getId(), TransactionCategory.OTHER)))
-                    .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+                    .isInstanceOf(WealthException.class);
             assertThat(accounts.findById(accountId).orElseThrow().getCurrentAmount()).isEqualByComparingTo("100.00");
             assertThat(transactionCount()).isZero();
         } finally {
@@ -204,8 +203,7 @@ class TransactionActionIntegrationTests {
     void expenseRefusesToDriveTheBucketNegative() {
         assertThatThrownBy(() -> action.execute(caller, movement(null, bucketId, null, null,
                 TransactionCategory.HOUSE)))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        exception -> assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+                .isInstanceOf(InvalidRequestException.class);
         assertBalances("100", "0", "20", "0");
         assertThat(transactionCount()).isZero();
     }
@@ -224,8 +222,7 @@ class TransactionActionIntegrationTests {
     void transferRefusesToDriveTheSourceBucketNegative() {
         assertThatThrownBy(() -> action.execute(caller, movement(null, bucketId, null, otherBucketId,
                 TransactionCategory.INVESTMENT)))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        exception -> assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+                .isInstanceOf(InvalidRequestException.class);
         assertBalances("100", "0", "20", "0");
         assertThat(transactionCount()).isZero();
     }
@@ -285,7 +282,7 @@ class TransactionActionIntegrationTests {
                         movement(invalid, null, null, null, TransactionCategory.OTHER),
                         movement(invalid, null, otherAccountId, null, TransactionCategory.OTHER),
                         movement(accountId, null, invalid, null, TransactionCategory.OTHER)}) {
-                    assertThatThrownBy(() -> action.execute(caller, request)).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+                    assertThatThrownBy(() -> action.execute(caller, request)).isInstanceOf(WealthException.class);
                 }
             }
             for (UUID invalid : new UUID[]{UUID.randomUUID(), foreignBucket.getId()}) {
@@ -293,7 +290,7 @@ class TransactionActionIntegrationTests {
                         movement(null, invalid, null, null, TransactionCategory.OTHER),
                         movement(null, invalid, null, otherBucketId, TransactionCategory.OTHER),
                         movement(null, bucketId, null, invalid, TransactionCategory.OTHER)}) {
-                    assertThatThrownBy(() -> action.execute(caller, request)).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+                    assertThatThrownBy(() -> action.execute(caller, request)).isInstanceOf(WealthException.class);
                 }
             }
             assertBalances("100", "0", "20", "0");

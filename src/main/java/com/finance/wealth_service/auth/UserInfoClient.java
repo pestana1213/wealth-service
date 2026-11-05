@@ -3,12 +3,12 @@ package com.finance.wealth_service.auth;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.server.ResponseStatusException;
+import com.finance.wealth_service.exception.IdentityProviderException;
+import com.finance.wealth_service.exception.UnauthorizedException;
 
 import java.util.Map;
 
@@ -39,16 +39,16 @@ public class UserInfoClient {
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                     .retrieve().body(JSON);
         } catch (HttpClientErrorException.Unauthorized exception) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Token rejected by the identity provider", exception);
+            throw new UnauthorizedException("Token rejected by the identity provider", exception);
         } catch (RestClientException exception) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Identity provider unavailable", exception);
+            throw new IdentityProviderException("Identity provider unavailable", exception);
         }
         if (claims == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Identity provider returned no profile");
+            throw new IdentityProviderException("Identity provider returned no profile");
         }
         String name = firstText(claims, "name", "preferred_username");
         if (name == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Identity provider returned no name");
+            throw new IdentityProviderException("Identity provider returned no name");
         }
         // An unverified address could squat on someone else's email, which is unique here.
         String email = Boolean.TRUE.equals(claims.get("email_verified")) ? firstText(claims, "email") : null;
@@ -65,12 +65,12 @@ public class UserInfoClient {
                     .retrieve().body(JSON);
             Object found = discovery == null ? null : discovery.get("userinfo_endpoint");
             if (!(found instanceof String text) || text.isBlank()) {
-                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Identity provider advertises no userinfo endpoint");
+                throw new IdentityProviderException("Identity provider advertises no userinfo endpoint");
             }
             userInfoEndpoint = text;
             return text;
         } catch (RestClientException exception) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Identity provider unavailable", exception);
+            throw new IdentityProviderException("Identity provider unavailable", exception);
         }
     }
 

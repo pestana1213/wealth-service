@@ -6,9 +6,9 @@ import com.finance.wealth_service.transaction.dto.Leg;
 import com.finance.wealth_service.transaction.dto.Movement;
 import com.finance.wealth_service.transaction.entity.Transaction;
 import com.finance.wealth_service.transaction.repository.TransactionRepository;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
+import com.finance.wealth_service.exception.ConflictException;
+import com.finance.wealth_service.exception.NotFoundException;
 
 import java.time.LocalDate;
 import java.util.UUID;
@@ -31,13 +31,13 @@ public class ReverseTransactionAction {
 
     public Transaction execute(AuthenticatedUser user, UUID transactionId) {
         Transaction original = transactions.findOwnedBy(transactionId, user.subject(), user.issuer())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction not found"));
+                .orElseThrow(() -> new NotFoundException("Transaction not found"));
         if (original.getReversalOf() != null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
+            throw new ConflictException(
                     "A reversal cannot be reversed; record a new transaction instead");
         }
         if (transactions.existsByReversalOf(transactionId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Transaction was already reversed");
+            throw new ConflictException("Transaction was already reversed");
         }
         return createTransaction.execute(mirrorOf(user, original));
     }

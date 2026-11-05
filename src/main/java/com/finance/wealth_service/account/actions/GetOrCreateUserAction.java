@@ -7,10 +7,9 @@ import com.finance.wealth_service.auth.UserInfoClient;
 import com.finance.wealth_service.auth.UserProfile;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.web.server.ResponseStatusException;
+import com.finance.wealth_service.exception.ConflictException;
 
 import java.util.Optional;
 
@@ -41,7 +40,7 @@ public class GetOrCreateUserAction {
                 return users.findBySubjectAndIssuer(caller.subject(), caller.issuer()).orElseThrow(() -> exception);
             }
             if ("users_email_unique".equals(constraint)) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered", exception);
+                throw new ConflictException("Email already registered", exception);
             }
             throw exception;
         }

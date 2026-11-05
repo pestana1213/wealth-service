@@ -4,10 +4,10 @@ import com.finance.wealth_service.auth.AuthenticatedUser;
 
 import com.finance.wealth_service.bucket.entity.Bucket;
 import com.finance.wealth_service.bucket.repository.BucketRepository;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
+import com.finance.wealth_service.exception.ConflictException;
+import com.finance.wealth_service.exception.NotFoundException;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -28,9 +28,9 @@ public class ArchiveBucketAction {
     @Transactional
     public void execute(AuthenticatedUser user, UUID bucketId) {
         Bucket bucket = buckets.findOwnedBy(bucketId, user.subject(), user.issuer())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bucket not found"));
+                .orElseThrow(() -> new NotFoundException("Bucket not found"));
         if (bucket.getCurrentAmount().compareTo(BigDecimal.ZERO) != 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
+            throw new ConflictException(
                     "Bucket still holds money; move the allocation out before archiving it");
         }
         bucket.archive();

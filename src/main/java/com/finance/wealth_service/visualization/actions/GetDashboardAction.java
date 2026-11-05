@@ -14,9 +14,8 @@ import com.finance.wealth_service.observability.WealthMetrics;
 import com.finance.wealth_service.valuation.entity.AccountValuation;
 import com.finance.wealth_service.valuation.repository.AccountValuationRepository;
 import com.finance.wealth_service.visualization.dto.*;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
+import com.finance.wealth_service.exception.NotFoundException;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -56,7 +55,7 @@ public class GetDashboardAction {
         UUID userId = users.findUserId(user).orElseThrow(() -> {
             metrics.recordDashboardFailure("not_found");
             metrics.recordDashboard("not_found", System.nanoTime() - started);
-            return new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+            return new NotFoundException("User not found");
         });
         try {
             DashboardResponse response = summarise(userId, accountViews(userId));
@@ -108,7 +107,7 @@ public class GetDashboardAction {
 
     public List<AccountView> accounts(AuthenticatedUser user) {
         UUID userId = users.findUserId(user)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new NotFoundException("User not found"));
         return accountViews(userId);
     }
 

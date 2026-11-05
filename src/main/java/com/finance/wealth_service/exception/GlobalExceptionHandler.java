@@ -25,8 +25,9 @@ import java.util.Map;
 
 /**
  * Renders every error as an RFC 9457 problem detail ({@code application/problem+json}).
- * Spring MVC exceptions and {@code ResponseStatusException} are handled by the base class;
- * this adds field-level validation errors, persistence conflicts and a catch-all 500.
+ * Spring MVC exceptions are handled by the base class; this maps the service's own
+ * {@link WealthException} subtypes to their status codes and adds field-level
+ * validation errors, persistence conflicts and a catch-all 500.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
@@ -50,6 +51,36 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         // The parser message exposes internal class names, so only a generic detail is returned.
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "Malformed or unreadable request body");
         return handleExceptionInternal(ex, problem, headers, status, request);
+    }
+
+    @ExceptionHandler(NotFoundException.class)
+    public ProblemDetail handleNotFound(NotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, ex);
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    public ProblemDetail handleConflict(ConflictException ex) {
+        return problem(HttpStatus.CONFLICT, ex);
+    }
+
+    @ExceptionHandler(InvalidRequestException.class)
+    public ProblemDetail handleInvalidRequest(InvalidRequestException ex) {
+        return problem(HttpStatus.BAD_REQUEST, ex);
+    }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public ProblemDetail handleUnauthorized(UnauthorizedException ex) {
+        return problem(HttpStatus.UNAUTHORIZED, ex);
+    }
+
+    @ExceptionHandler(IdentityProviderException.class)
+    public ProblemDetail handleIdentityProvider(IdentityProviderException ex) {
+        log.warn("Identity provider failure: {}", ex.getMessage(), ex.getCause());
+        return problem(HttpStatus.BAD_GATEWAY, ex);
+    }
+
+    private static ProblemDetail problem(HttpStatus status, WealthException ex) {
+        return ProblemDetail.forStatusAndDetail(status, ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

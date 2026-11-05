@@ -11,9 +11,10 @@ import com.finance.wealth_service.transaction.dto.Movement;
 import com.finance.wealth_service.transaction.entity.Transaction;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.dao.PessimisticLockingFailureException;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
+import com.finance.wealth_service.exception.ConflictException;
+import com.finance.wealth_service.exception.InvalidRequestException;
+import com.finance.wealth_service.exception.WealthException;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -51,9 +52,9 @@ public class CreateTransactionAction {
 
     private Transaction post(Movement movement) {
         if (movement.from() == null && movement.to() == null)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A movement needs an origin or a destination");
+            throw new InvalidRequestException("A movement needs an origin or a destination");
         if (Objects.equals(movement.from(), movement.to()))
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Origin and destination are the same");
+            throw new InvalidRequestException("Origin and destination are the same");
         return ledger.post(movement);
     }
 
@@ -66,13 +67,13 @@ public class CreateTransactionAction {
             return created;
         } catch (PessimisticLockingFailureException exception) {
             metrics.recordTransaction("conflict", System.nanoTime() - started);
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
+            throw new ConflictException(
                     "Account or bucket is busy; retry the transaction", exception);
         } catch (OptimisticLockingFailureException exception) {
             metrics.recordTransaction("conflict", System.nanoTime() - started);
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
+            throw new ConflictException(
                     "Balance changed concurrently; retry the transaction", exception);
-        } catch (ResponseStatusException exception) {
+        } catch (WealthException exception) {
             metrics.recordTransaction("invalid", System.nanoTime() - started);
             throw exception;
         }
@@ -80,10 +81,10 @@ public class CreateTransactionAction {
 
     private Leg resolve(AuthenticatedUser user, UUID accountId, UUID bucketId) {
         if (accountId != null && bucketId != null)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Give an account or a bucket, not both");
+            throw new InvalidRequestException("Give an account or a bucket, not both");
         if (bucketId != null) {
             Bucket bucket = bucketPort.findOwnedBy(bucketId, user.subject(), user.issuer())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bucket not found"));
+                    .orElseThrow(() -> new InvalidRequestException("Bucket not found"));
             return new Leg(bucket.getAccountId(), bucketId);
         }
         return accountId == null ? null : new Leg(accountId, null);

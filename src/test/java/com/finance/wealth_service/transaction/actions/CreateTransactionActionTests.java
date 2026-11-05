@@ -12,8 +12,8 @@ import com.finance.wealth_service.transaction.entity.TransactionCategory;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
+import com.finance.wealth_service.exception.ConflictException;
+import com.finance.wealth_service.exception.InvalidRequestException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
@@ -43,8 +43,7 @@ class CreateTransactionActionTests {
     }
 
     private void assertRejectedAsInvalid(CreateTransactionRequest request) {
-        assertThatThrownBy(() -> action.execute(caller, request)).isInstanceOfSatisfying(ResponseStatusException.class,
-                e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+        assertThatThrownBy(() -> action.execute(caller, request)).isInstanceOf(InvalidRequestException.class);
         verifyNoInteractions(ledger);
         assertThat(registry.get("wealth.transactions").tag("outcome", "invalid").counter().count()).isEqualTo(1);
     }
@@ -53,8 +52,7 @@ class CreateTransactionActionTests {
     void mapsConcurrentUpdateToConflict() {
         when(ledger.post(any())).thenThrow(new OptimisticLockingFailureException("conflict"));
         assertThatThrownBy(() -> action.execute(caller, request(null, null, UUID.randomUUID(), null)))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+                .isInstanceOf(ConflictException.class);
         assertThat(registry.get("wealth.transactions").tag("outcome", "conflict").counter().count()).isEqualTo(1);
     }
 

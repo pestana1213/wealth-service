@@ -7,10 +7,9 @@ import com.finance.wealth_service.account.entity.User;
 import com.finance.wealth_service.account.repository.AccountRepository;
 import com.finance.wealth_service.account.repository.UserRepository;
 import com.finance.wealth_service.auth.AuthenticatedUser;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
+import com.finance.wealth_service.exception.NotFoundException;
 import java.math.BigDecimal;
 import java.util.Optional;
 
@@ -29,7 +28,7 @@ public class CreateAccountAction {
         AccountType type = AccountType.SAVINGS;
         Optional<User> optionalUser = users.findBySubjectAndIssuer(user.subject(), user.issuer());
         if (optionalUser.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+            throw new NotFoundException("User not found");
         }
         BigDecimal amount = request.currentAmount() == null ? BigDecimal.ZERO : request.currentAmount();
         if (request.type() != null) {

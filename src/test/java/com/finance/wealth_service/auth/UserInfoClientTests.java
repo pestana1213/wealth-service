@@ -4,7 +4,8 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.server.ResponseStatusException;
+import com.finance.wealth_service.exception.IdentityProviderException;
+import com.finance.wealth_service.exception.UnauthorizedException;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -77,16 +78,14 @@ class UserInfoClientTests {
     void rejectedTokenIsUnauthorized() {
         userInfoStatus.set(401);
         assertThatThrownBy(() -> new UserInfoClient(issuer).fetch("abc"))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("401");
+                .isInstanceOf(UnauthorizedException.class);
     }
 
     @Test
     void unreachableProviderIsBadGateway() {
         server.stop(0);
         assertThatThrownBy(() -> new UserInfoClient(issuer).fetch("abc"))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("502");
+                .isInstanceOf(IdentityProviderException.class);
     }
 
     private static void respond(com.sun.net.httpserver.HttpExchange exchange, int status, String body) throws IOException {

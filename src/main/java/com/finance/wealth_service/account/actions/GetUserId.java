@@ -4,9 +4,8 @@ import com.finance.wealth_service.account.entity.User;
 import com.finance.wealth_service.account.port.UserPort;
 import com.finance.wealth_service.account.repository.UserRepository;
 import com.finance.wealth_service.auth.AuthenticatedUser;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
+import com.finance.wealth_service.exception.NotFoundException;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -27,6 +26,6 @@ public class GetUserId implements UserPort {
     @Override
     public UUID requireUserId(AuthenticatedUser user) {
         return findUserId(user)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new NotFoundException("User not found"));
     }
 }

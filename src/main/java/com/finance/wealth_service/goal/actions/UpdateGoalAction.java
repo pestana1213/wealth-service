@@ -5,10 +5,9 @@ import com.finance.wealth_service.auth.AuthenticatedUser;
 import com.finance.wealth_service.goal.dto.UpdateGoalRequest;
 import com.finance.wealth_service.goal.entity.Goal;
 import com.finance.wealth_service.goal.repository.GoalRepository;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
+import com.finance.wealth_service.exception.NotFoundException;
 
 import java.util.UUID;
 
@@ -23,7 +22,7 @@ public class UpdateGoalAction {
     @Transactional
     public Goal execute(AuthenticatedUser user, UUID goalId, UpdateGoalRequest request) {
         Goal goal = goals.findOwnedBy(goalId, user.subject(), user.issuer())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Goal not found"));
+                .orElseThrow(() -> new NotFoundException("Goal not found"));
         if (request.goalAmount() != null) {
             goal.setGoalAmount(request.goalAmount());
         }

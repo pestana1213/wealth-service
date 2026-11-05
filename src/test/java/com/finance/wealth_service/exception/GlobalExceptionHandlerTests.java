@@ -52,7 +52,7 @@ class GlobalExceptionHandlerTests {
     }
 
     @Test
-    void responseStatusExceptionKeepsReason() throws Exception {
+    void domainExceptionKeepsItsMessage() throws Exception {
         mvc.perform(patch("/accounts").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"accountId\":\"" + UUID.randomUUID() + "\"}"))
                 .andExpect(status().isNotFound())
