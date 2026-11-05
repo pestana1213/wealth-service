@@ -13,8 +13,16 @@ public interface BucketRepository extends JpaRepository<Bucket, UUID> {
     /** Active buckets only: an archived bucket stays out of the dashboard and the listings. */
     List<Bucket> findByUserIdAndArchivedFalseOrderByName(UUID userId);
 
-    @Query(value = "SELECT * FROM buckets WHERE id = :id AND user_id = :userId AND archived = false FOR UPDATE NOWAIT", nativeQuery = true)
-    Optional<Bucket> findByIdAndUserIdForUpdate(@Param("id") UUID id, @Param("userId") UUID userId);
+    /** Locks the bucket if it belongs to the caller and is active; fails at once if another movement holds it. */
+    @Query(value = """
+            SELECT b.* FROM buckets b
+            JOIN users u ON u.id = b.user_id
+            WHERE b.id = :bucketId AND b.archived = false AND u.subject = :subject AND u.issuer = :issuer
+            FOR UPDATE OF b NOWAIT""",
+            nativeQuery = true)
+    Optional<Bucket> findOwnedByForUpdate(@Param("bucketId") UUID bucketId,
+                                          @Param("subject") String subject,
+                                          @Param("issuer") String issuer);
 
     /** The bucket, if it belongs to the caller; archived ones included. */
     @Query(value = """

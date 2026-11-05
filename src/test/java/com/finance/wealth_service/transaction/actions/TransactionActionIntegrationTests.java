@@ -115,6 +115,22 @@ class TransactionActionIntegrationTests {
     }
 
     @Test
+    void anotherCallerCannotMoveTheseAccounts() {
+        assertThatThrownBy(() -> action.execute(TestUsers.stranger(), request(bucketId, TransactionCategory.HOUSE)))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+        assertThat(accounts.findById(accountId).orElseThrow().getCurrentAmount()).isEqualByComparingTo("100.00");
+        assertThat(buckets.findById(bucketId).orElseThrow().getCurrentAmount()).isEqualByComparingTo("20.00");
+        assertThat(transactionCount()).isZero();
+    }
+
+    @Test
+    void recordsTheTransactionUnderTheAccountOwner() {
+        Transaction transaction = action.execute(caller, request(null, TransactionCategory.OTHER));
+        assertThat(transaction.getUserId()).isEqualTo(userId);
+    }
+
+    @Test
     void foreignBucketDoesNotChangeBalance() {
         User other = users.saveAndFlush(TestUsers.newUser("Other"));
         Bucket foreign = buckets.saveAndFlush(new Bucket(other.getId(), "Other"));
@@ -340,7 +356,7 @@ class TransactionActionIntegrationTests {
                     // A bucket lock failure must also release any account locks acquired earlier.
                     if (table.equals("buckets")) {
                         template.executeWithoutResult(status -> {
-                            assertThat(accounts.findByIdAndUserIdForUpdate(accountId, userId)).isPresent();
+                            assertThat(accounts.findOwnedByForUpdate(accountId, caller.subject(), caller.issuer())).isPresent();
                         });
                     }
                     connection.rollback();

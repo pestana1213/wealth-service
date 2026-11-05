@@ -22,8 +22,16 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
                                   @Param("subject") String subject,
                                   @Param("issuer") String issuer);
 
-    @Query(value = "SELECT * FROM accounts WHERE id = :id AND user_id = :userId FOR UPDATE NOWAIT", nativeQuery = true)
-    Optional<Account> findByIdAndUserIdForUpdate(@Param("id") UUID id, @Param("userId") UUID userId);
+    /** Locks the account if it belongs to the caller; fails at once if another movement holds it. */
+    @Query(value = """
+            SELECT a.* FROM accounts a
+            JOIN users u ON u.id = a.user_id
+            WHERE a.id = :accountId AND u.subject = :subject AND u.issuer = :issuer
+            FOR UPDATE OF a NOWAIT""",
+            nativeQuery = true)
+    Optional<Account> findOwnedByForUpdate(@Param("accountId") UUID accountId,
+                                           @Param("subject") String subject,
+                                           @Param("issuer") String issuer);
 
     @Query(value = "SELECT * FROM accounts WHERE id IN :id", nativeQuery = true)
     List<Account> findAllByIds(@Param("id") List<UUID> ids);

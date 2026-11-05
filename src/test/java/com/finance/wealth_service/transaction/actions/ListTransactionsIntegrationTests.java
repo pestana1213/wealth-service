@@ -18,10 +18,8 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -170,10 +168,10 @@ class ListTransactionsIntegrationTests {
     }
 
     @Test
-    void rejectsUnknownUserWithNotFound() {
-        assertThatThrownBy(() -> listTransactions.listTransactions(TestUsers.stranger()))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+    void unprovisionedCallerHasNoHistory() {
+        createTransaction.execute(caller, request(TransactionType.INCOME, null, accountId, null, null));
+
+        assertThat(listTransactions.listTransactions(TestUsers.stranger())).isEmpty();
     }
 
     @Test

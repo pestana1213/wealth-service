@@ -10,12 +10,13 @@ import java.util.Optional;
 
 public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
 
-    @Query("""
-            select t from Transaction t
-            where t.userId = :userId
-            order by t.occurredAt desc, t.createdAt desc, t.id desc
-            """)
-    List<Transaction> findHistory(@Param("userId") UUID userId);
+    @Query(value = """
+            SELECT t.* FROM transactions t
+            JOIN users u ON u.id = t.user_id
+            WHERE u.subject = :subject AND u.issuer = :issuer
+            ORDER BY t.occurred_at DESC, t.created_at DESC, t.id DESC""",
+            nativeQuery = true)
+    List<Transaction> findHistory(@Param("subject") String subject, @Param("issuer") String issuer);
 
     boolean existsByReversalOf(UUID reversalOf);
 

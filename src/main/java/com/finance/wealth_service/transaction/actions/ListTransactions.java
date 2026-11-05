@@ -3,7 +3,6 @@ package com.finance.wealth_service.transaction.actions;
 import com.finance.wealth_service.auth.AuthenticatedUser;
 
 import com.finance.wealth_service.account.port.AccountPort;
-import com.finance.wealth_service.account.port.UserPort;
 import com.finance.wealth_service.bucket.port.BucketPort;
 import com.finance.wealth_service.transaction.dto.MovementAcc;
 import com.finance.wealth_service.transaction.dto.MovementSource;
@@ -13,9 +12,7 @@ import com.finance.wealth_service.transaction.entity.TransactionType;
 import com.finance.wealth_service.transaction.repository.TransactionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 import java.util.function.Function;
@@ -35,29 +32,22 @@ public class ListTransactions {
 
     private final TransactionRepository transactionRepo;
 
-    private final UserPort users;
 
     private final AccountPort accountPort;
 
     private final BucketPort bucketPort;
 
-    public ListTransactions(TransactionRepository transactionRepo, UserPort users,
+    public ListTransactions(TransactionRepository transactionRepo,
                             AccountPort accountPort,
                             BucketPort bucketPort) {
         this.transactionRepo = transactionRepo;
-        this.users = users;
         this.accountPort = accountPort;
         this.bucketPort = bucketPort;
     }
 
     public List<TransactionDTO> listTransactions(AuthenticatedUser user) {
-        Optional<UUID> found = users.findUserId(user);
-        if (found.isEmpty()) {
-            log.warn("List transactions called by a user that was never provisioned");
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
-        }
-        UUID userId = found.get();
-        List<Transaction> transactions = transactionRepo.findHistory(userId);
+        // Joined on the token's identity: a caller that was never provisioned simply has no history.
+        List<Transaction> transactions = transactionRepo.findHistory(user.subject(), user.issuer());
         Map<UUID, MovementAcc> accounts = accounts(transactions);
         Map<UUID, MovementAcc> buckets = buckets(transactions);
 

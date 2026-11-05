@@ -1,5 +1,7 @@
 package com.finance.wealth_service.transaction.actions;
 
+import com.finance.wealth_service.auth.AuthenticatedUser;
+
 import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.repository.AccountRepository;
 import com.finance.wealth_service.bucket.entity.Bucket;
@@ -57,32 +59,38 @@ public class Ledger {
     public Transaction post(NewTransaction movement) {
         CreateTransactionRequest request = movement.request();
         return transactionTemplate.execute(_ -> {
-            Map<UUID, Account> lockedAccounts = lockAccounts(movement.userId(), request);
-            Map<UUID, Bucket> lockedBuckets = lockBuckets(movement.userId(), request);
+            Map<UUID, Account> lockedAccounts = lockAccounts(movement.owner(), request);
+            Map<UUID, Bucket> lockedBuckets = lockBuckets(movement.owner(), request);
             applyToAccounts(request, lockedAccounts);
             applyToBuckets(request, lockedBuckets);
             return transactions.saveAndFlush(new Transaction(
-                    movement.userId(), request.providerAccountId(), request.destinationAccountId(),
+                    ownerOf(lockedAccounts), request.providerAccountId(), request.destinationAccountId(),
                     request.sourceBucketId(), request.destinationBucketId(), request.transactionAmount(),
                     request.type(), request.category(), request.occurredAt(), request.description(),
                     movement.reversalOf()));
         });
     }
 
-    private Map<UUID, Account> lockAccounts(UUID userId, CreateTransactionRequest request) {
+    private static UUID ownerOf(Map<UUID, Account> lockedAccounts) {
+        return lockedAccounts.values().stream().findFirst()
+                .map(Account::getUserId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "A movement needs an account"));
+    }
+
+    private Map<UUID, Account> lockAccounts(AuthenticatedUser owner, CreateTransactionRequest request) {
         Map<UUID, Account> locked = new HashMap<>();
         Stream.of(request.providerAccountId(), request.destinationAccountId())
                 .filter(Objects::nonNull).distinct().sorted()
-                .forEach(id -> locked.put(id, accounts.findByIdAndUserIdForUpdate(id, userId)
+                .forEach(id -> locked.put(id, accounts.findOwnedByForUpdate(id, owner.subject(), owner.issuer())
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account not found"))));
         return locked;
     }
 
-    private Map<UUID, Bucket> lockBuckets(UUID userId, CreateTransactionRequest request) {
+    private Map<UUID, Bucket> lockBuckets(AuthenticatedUser owner, CreateTransactionRequest request) {
         Map<UUID, Bucket> locked = new HashMap<>();
         Stream.of(request.sourceBucketId(), request.destinationBucketId())
                 .filter(Objects::nonNull).distinct().sorted()
-                .forEach(id -> locked.put(id, buckets.findByIdAndUserIdForUpdate(id, userId)
+                .forEach(id -> locked.put(id, buckets.findOwnedByForUpdate(id, owner.subject(), owner.issuer())
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bucket not found"))));
         return locked;
     }

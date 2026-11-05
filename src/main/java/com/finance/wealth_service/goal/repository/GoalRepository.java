@@ -9,7 +9,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface GoalRepository extends JpaRepository<Goal, UUID> {
-    @Query("select g from Goal g where g.bucketId in (select b.id from Bucket b where b.userId = :userId and b.archived = false) order by g.goalObjective")
+    @Query(value = """
+            SELECT g.* FROM goals g
+            JOIN buckets b ON b.id = g.bucket_id
+            WHERE b.user_id = :userId AND b.archived = false
+            ORDER BY g.goal_objective""",
+            nativeQuery = true)
     List<Goal> findByUserId(@Param("userId") UUID userId);
 
     /** The goal, if its bucket belongs to the caller. */

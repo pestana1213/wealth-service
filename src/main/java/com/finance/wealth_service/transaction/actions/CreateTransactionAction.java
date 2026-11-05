@@ -5,7 +5,6 @@ import com.finance.wealth_service.auth.AuthenticatedUser;
 import com.finance.wealth_service.observability.WealthMetrics;
 import com.finance.wealth_service.transaction.dto.CreateTransactionRequest;
 import com.finance.wealth_service.transaction.entity.Transaction;
-import com.finance.wealth_service.account.port.UserPort;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -21,18 +20,16 @@ import java.util.Objects;
  */
 @Service
 public class CreateTransactionAction {
-    private final UserPort users;
     private final Ledger ledger;
     private final WealthMetrics metrics;
 
-    public CreateTransactionAction(UserPort users, Ledger ledger, WealthMetrics metrics) {
-        this.users = users;
+    public CreateTransactionAction(Ledger ledger, WealthMetrics metrics) {
         this.ledger = ledger;
         this.metrics = metrics;
     }
 
     public Transaction execute(AuthenticatedUser user, CreateTransactionRequest request) {
-        return execute(new NewTransaction(users.requireUserId(user), request));
+        return execute(new NewTransaction(user, request));
     }
 
     public Transaction execute(NewTransaction movement) {
