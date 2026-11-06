@@ -148,10 +148,24 @@ public class GetDashboardAction {
         return accountViews(userId);
     }
 
+    /**
+     * What an account is worth now. Without a valuation, its balance. With one, the
+     * valued amount plus whatever moved in or out since: that money has no market
+     * price yet, so it counts at cost. Taking the valuation alone would make a
+     * transfer into the account after its last valuation vanish from net worth.
+     */
+    private static BigDecimal marketOf(AccountView account) {
+        if (account.marketValue() == null) {
+            return account.currentAmount();
+        }
+        BigDecimal movedSinceValuation = account.currentAmount().subtract(account.investedMoney());
+        return account.marketValue().add(movedSinceValuation);
+    }
+
     private static DashboardResponse summarise(UUID userId, List<AccountView> accounts) {
         BigDecimal total = sum(accounts, AccountView::currentAmount);
         BigDecimal allocated = sum(accounts, AccountView::allocatedAmount);
-        BigDecimal market = sum(accounts, a -> a.marketValue() == null ? a.currentAmount() : a.marketValue());
+        BigDecimal market = sum(accounts, GetDashboardAction::marketOf);
         BigDecimal gain = sum(accounts.stream().filter(a -> a.marketValue() != null).toList(),
                 a -> a.marketValue().subtract(a.investedMoney()));
         return new DashboardResponse(userId, total, allocated, total.subtract(allocated), market, gain, accounts);

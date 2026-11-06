@@ -76,6 +76,30 @@ class DashboardNetWorthTests {
                 .andExpect(jsonPath("$.marketGain").value(250.50));
     }
 
+    /**
+     * Money moved in after the last valuation has no market price yet, so it counts
+     * at cost on top of that valuation. Otherwise a transfer from a savings account
+     * into the broker would make net worth drop by the amount transferred.
+     */
+    @Test
+    void countsMoneyMovedInAfterTheLatestValuationAtCost() throws Exception {
+        record("1250.50", "1000.00", "2026-10-01");
+        // 50 moved from the bank into the broker after the valuation.
+        Account bank = accounts.findById(bankId).orElseThrow();
+        bank.setCurrentAmount(new BigDecimal("50.00"));
+        accounts.saveAndFlush(bank);
+        Account broker = accounts.findById(brokerId).orElseThrow();
+        broker.setCurrentAmount(new BigDecimal("1050.00"));
+        accounts.saveAndFlush(broker);
+        mvc.perform(get("/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalAmount").value(1100.00))
+                // Bank 50 + broker valuation 1250.50 + the 50 not yet valued: the transfer changes nothing.
+                .andExpect(jsonPath("$.marketAmount").value(1350.50))
+                // The gain is still only what the valuation showed.
+                .andExpect(jsonPath("$.marketGain").value(250.50));
+    }
+
     @Test
     void countsAnAccountWithoutValuationAtItsBalance() throws Exception {
         mvc.perform(get("/dashboard"))
