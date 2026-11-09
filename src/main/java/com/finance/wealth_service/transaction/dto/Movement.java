@@ -1,6 +1,7 @@
 package com.finance.wealth_service.transaction.dto;
 
 import com.finance.wealth_service.auth.AuthenticatedUser;
+import com.finance.wealth_service.common.Leg;
 import com.finance.wealth_service.transaction.entity.TransactionCategory;
 import com.finance.wealth_service.transaction.entity.TransactionType;
 

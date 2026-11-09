@@ -6,7 +6,7 @@ import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.account.repository.AccountRepository;
 import com.finance.wealth_service.bucket.entity.Bucket;
 import com.finance.wealth_service.bucket.repository.BucketRepository;
-import com.finance.wealth_service.transaction.dto.Leg;
+import com.finance.wealth_service.common.Leg;
 import com.finance.wealth_service.transaction.dto.Movement;
 import com.finance.wealth_service.transaction.entity.Transaction;
 import com.finance.wealth_service.transaction.repository.TransactionRepository;
