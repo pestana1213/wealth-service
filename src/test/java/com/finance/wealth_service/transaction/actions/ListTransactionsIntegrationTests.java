@@ -86,7 +86,7 @@ class ListTransactionsIntegrationTests {
     void namesTheBucketsWhenATransferStaysInsideOneAccount() {
         createTransaction.execute(caller, request(null, bucketId, null, otherBucketId));
 
-        List<TransactionDTO> history = listTransactions.listTransactions(caller);
+        List<TransactionDTO> history = listTransactions.listTransactions(caller, 0).content();
 
         assertThat(history).hasSize(1);
         MovementAcc from = history.getFirst().source();
@@ -102,7 +102,7 @@ class ListTransactionsIntegrationTests {
     void namesTheAccountsWhenMoneyMovesBetweenThem() {
         createTransaction.execute(caller, request(accountId, null, otherAccountId, null));
 
-        List<TransactionDTO> history = listTransactions.listTransactions(caller);
+        List<TransactionDTO> history = listTransactions.listTransactions(caller, 0).content();
 
         assertThat(history).hasSize(1);
         assertThat(history.getFirst().source().name()).isEqualTo("Moey");
@@ -114,7 +114,7 @@ class ListTransactionsIntegrationTests {
     void namesTheBucketAndTheAccountWhenABucketPaysIntoAnotherAccount() {
         createTransaction.execute(caller, request(null, bucketId, otherAccountId, null));
 
-        List<TransactionDTO> history = listTransactions.listTransactions(caller);
+        List<TransactionDTO> history = listTransactions.listTransactions(caller, 0).content();
 
         assertThat(history).hasSize(1);
         assertThat(history.getFirst().source().name()).isEqualTo("Casa");
@@ -127,7 +127,7 @@ class ListTransactionsIntegrationTests {
     void namesTheAccountAndTheBucketWhenMoneyIsAllocated() {
         createTransaction.execute(caller, request(accountId, null, null, otherBucketId));
 
-        List<TransactionDTO> history = listTransactions.listTransactions(caller);
+        List<TransactionDTO> history = listTransactions.listTransactions(caller, 0).content();
 
         assertThat(history).hasSize(1);
         assertThat(history.getFirst().source().name()).isEqualTo("Moey");
@@ -143,7 +143,7 @@ class ListTransactionsIntegrationTests {
         setCreatedAt(older.getId(), Instant.now().minusSeconds(3600));
         setCreatedAt(newer.getId(), Instant.now());
 
-        List<TransactionDTO> history = listTransactions.listTransactions(caller);
+        List<TransactionDTO> history = listTransactions.listTransactions(caller, 0).content();
 
         assertThat(history).extracting(TransactionDTO::transactionId)
                 .containsExactly(newer.getId(), older.getId());
@@ -156,7 +156,7 @@ class ListTransactionsIntegrationTests {
                 new BigDecimal("10.00"), TransactionCategory.OTHER, LocalDate.now().minusDays(1), "Yesterday"));
         setCreatedAt(yesterday.getId(), Instant.now());
 
-        List<TransactionDTO> history = listTransactions.listTransactions(caller);
+        List<TransactionDTO> history = listTransactions.listTransactions(caller, 0).content();
 
         assertThat(history).extracting(TransactionDTO::transactionId)
                 .containsExactly(today.getId(), yesterday.getId());
@@ -166,14 +166,14 @@ class ListTransactionsIntegrationTests {
     void unprovisionedCallerHasNoHistory() {
         createTransaction.execute(caller, request(null, null, accountId, null));
 
-        assertThat(listTransactions.listTransactions(TestUsers.stranger())).isEmpty();
+        assertThat(listTransactions.listTransactions(TestUsers.stranger(), 0).content()).isEmpty();
     }
 
     @Test
     void leavesIncomeWithoutSourceNull() {
         createTransaction.execute(caller, request(null, null, accountId, null));
 
-        List<TransactionDTO> history = listTransactions.listTransactions(caller);
+        List<TransactionDTO> history = listTransactions.listTransactions(caller, 0).content();
 
         assertThat(history).hasSize(1);
         assertThat(history.getFirst().source()).isNull();

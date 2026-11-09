@@ -73,6 +73,25 @@ These panels therefore use `w: 96` at `x: 0` and `x: 96`, two per row. OpenObser
 enforces `minW: 12` and `minH: 8` for chart panels, so anything smaller will not
 survive a drag-resize. The generator that produced the file checks both.
 
+## Three filters that are easy to drop by accident
+
+**`uri!~"/actuator.*"` on every HTTP panel in Traffic.** Prometheus scrapes
+`/actuator/prometheus` and Kubernetes hits `/actuator/health/*` on a fixed
+schedule, whether anyone is using the app or not. Left in, they set a floor
+under `Requests/s`, pull the mean and p95 latency down towards the cost of a
+health check, and dilute the 5xx ratio. They now have a panel of their own,
+`Actuator traffic`, where a gap means scraping or probing stopped.
+
+**`method="POST"` on the `/transactions` panels.** `GET /transactions` (the
+list) and `POST /transactions` (the write) share the same `uri` label. Without
+the method filter, the write-latency and status panels mix list reads into the
+write path.
+
+**`Container CPU, cores` is not filtered by Environment.** It reads cAdvisor's
+`container_cpu_usage_seconds_total`, which carries `namespace`, `pod` and
+`container` but no `application` label, so `$app` cannot apply. It is split by
+`pod` instead.
+
 ## Metric names were verified, not guessed
 
 Every series this dashboard queries was read off a **live scrape** of

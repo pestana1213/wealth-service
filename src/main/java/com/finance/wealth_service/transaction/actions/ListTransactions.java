@@ -6,6 +6,7 @@ import com.finance.wealth_service.account.port.AccountPort;
 import com.finance.wealth_service.bucket.port.BucketPort;
 import com.finance.wealth_service.transaction.dto.MovementAcc;
 import com.finance.wealth_service.transaction.dto.MovementSource;
+import com.finance.wealth_service.transaction.dto.PageResponse;
 import com.finance.wealth_service.transaction.dto.TransactionDTO;
 import com.finance.wealth_service.transaction.entity.Transaction;
 import com.finance.wealth_service.transaction.entity.TransactionType;
@@ -13,6 +14,7 @@ import com.finance.wealth_service.transaction.repository.TransactionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
@@ -31,6 +33,8 @@ public class ListTransactions {
     private static final String REMOVED_ACCOUNT = "Conta removida";
     private static final String REMOVED_BUCKET = "Finalidade removida";
 
+    private static final int PAGE_SIZE = 10;
+
     private final TransactionRepository transactionRepo;
 
 
@@ -46,15 +50,22 @@ public class ListTransactions {
         this.bucketPort = bucketPort;
     }
 
-    @Transactional(readOnly = true)
-    public List<TransactionDTO> listTransactions(AuthenticatedUser user) {
-        List<Transaction> transactions = transactionRepo.findHistory(user.subject(), user.issuer());
+    /**
+     * {@code REPEATABLE_READ} so the page and the total come from the same snapshot:
+     * a transaction committed between the two queries can't make them disagree.
+     */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public PageResponse<TransactionDTO> listTransactions(AuthenticatedUser user, int page) {
+        long offset = (long) page * PAGE_SIZE;
+        List<Transaction> transactions = transactionRepo.findHistory(user.subject(), user.issuer(), PAGE_SIZE, offset);
+        long total = transactionRepo.countHistory(user.subject(), user.issuer());
         Map<UUID, MovementAcc> accounts = accounts(transactions);
         Map<UUID, MovementAcc> buckets = buckets(transactions);
 
-        return transactions.stream()
+        List<TransactionDTO> content = transactions.stream()
                 .map(t -> toDto(t, accounts, buckets))
                 .toList();
+        return PageResponse.of(content, page, PAGE_SIZE, total);
     }
 
     private TransactionDTO toDto(Transaction t, Map<UUID, MovementAcc> accounts, Map<UUID, MovementAcc> buckets) {

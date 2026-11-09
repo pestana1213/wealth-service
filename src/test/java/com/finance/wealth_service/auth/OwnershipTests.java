@@ -108,6 +108,6 @@ class OwnershipTests {
                 // Buckets and goals live inside the accounts, so none of them leak either.
                 .andExpect(jsonPath("$.accounts", hasSize(0)));
         mvc.perform(get("/accounts")).andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(0)));
-        mvc.perform(get("/transactions")).andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(0)));
+        mvc.perform(get("/transactions")).andExpect(status().isOk()).andExpect(jsonPath("$.content", hasSize(0)));
     }
 }

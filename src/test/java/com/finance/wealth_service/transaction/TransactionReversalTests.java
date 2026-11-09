@@ -130,7 +130,7 @@ class TransactionReversalTests {
         mvc.perform(post("/transactions/" + original + "/reversal")).andExpect(status().isCreated());
         mvc.perform(get("/transactions"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$.content.length()").value(2));
     }
 
     @Test
@@ -139,9 +139,9 @@ class TransactionReversalTests {
         mvc.perform(post("/transactions/" + original + "/reversal")).andExpect(status().isCreated());
         mvc.perform(get("/transactions"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].reversalOf").value(original.toString()))
-                .andExpect(jsonPath("$[1].transactionId").value(original.toString()))
-                .andExpect(jsonPath("$[1].reversalOf").value((Object) null));
+                .andExpect(jsonPath("$.content[0].reversalOf").value(original.toString()))
+                .andExpect(jsonPath("$.content[1].transactionId").value(original.toString()))
+                .andExpect(jsonPath("$.content[1].reversalOf").value((Object) null));
     }
 
     @Test

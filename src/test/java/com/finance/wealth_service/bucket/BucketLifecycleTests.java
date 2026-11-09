@@ -171,7 +171,7 @@ class BucketLifecycleTests {
 
         mvc.perform(get("/transactions"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].destination.name").value("House"));
+                .andExpect(jsonPath("$.content[0].destination.name").value("House"));
     }
 
     @Test

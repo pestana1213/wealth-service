@@ -14,9 +14,20 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
             SELECT t.* FROM transactions t
             JOIN users u ON u.id = t.user_id
             WHERE u.subject = :subject AND u.issuer = :issuer
-            ORDER BY t.occurred_at DESC, t.created_at DESC, t.id DESC""",
+            ORDER BY t.occurred_at DESC, t.created_at DESC, t.id DESC
+            LIMIT :limit OFFSET :offset""",
             nativeQuery = true)
-    List<Transaction> findHistory(@Param("subject") String subject, @Param("issuer") String issuer);
+    List<Transaction> findHistory(@Param("subject") String subject,
+                                  @Param("issuer") String issuer,
+                                  @Param("limit") int limit,
+                                  @Param("offset") long offset);
+
+    @Query(value = """
+            SELECT COUNT(*) FROM transactions t
+            JOIN users u ON u.id = t.user_id
+            WHERE u.subject = :subject AND u.issuer = :issuer""",
+            nativeQuery = true)
+    long countHistory(@Param("subject") String subject, @Param("issuer") String issuer);
 
     boolean existsByReversalOf(UUID reversalOf);
 

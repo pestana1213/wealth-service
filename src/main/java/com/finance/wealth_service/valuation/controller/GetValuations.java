@@ -24,6 +24,7 @@ public class GetValuations {
     @GetMapping("/accounts/{accountId}/valuations")
     @Operation(summary = "List valuations", description = "Newest valuation date first.")
     public List<ValuationResponse> list(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID accountId) {
+        //TODO: ADD PAGINATION
         return action.execute(user, accountId).stream().map(ValuationResponse::from).toList();
     }
 }
