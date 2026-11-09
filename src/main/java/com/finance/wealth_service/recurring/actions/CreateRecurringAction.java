@@ -46,7 +46,7 @@ public class CreateRecurringAction {
 
     public Recurring execute(AuthenticatedUser user, CreateRecurringRequest request) {
         UUID userId = userPort.findUserId(user).orElseThrow(() -> {
-            metrics.recordRecurring("not_found");
+            metrics.recordRecurring("create", "not_found");
             return new NotFoundException("User not found");
         });
 
@@ -75,7 +75,7 @@ public class CreateRecurringAction {
                 request.startsOn(),
                 request.endsOn(),
                 request.mode()));
-        metrics.recordRecurring("created");
+        metrics.recordRecurring("create", "created");
         return created;
     }
 

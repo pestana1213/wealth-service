@@ -36,8 +36,8 @@ public class WealthMetrics {
         Counter.builder(DASHBOARD_FAILURES).tag("reason", reason).register(registry).increment();
     }
 
-    /** Counts operations on recurring movements, tagged by how they ended (created, invalid, not_found…). */
-    public void recordRecurring(String result) {
-        Counter.builder(RECURRING).tag("result", result).register(registry).increment();
+    public void recordRecurring(String operation, String result) {
+        Counter.builder(RECURRING).tag("operation", operation).tag("result", result)
+                .register(registry).increment();
     }
 }

@@ -26,8 +26,8 @@ class WealthMetricsPrometheusContractTests {
         metrics.recordDashboard("not_found", 1_000_000);
         metrics.recordDashboardFailure("not_found");
         metrics.recordDashboardFailure("error");
-        metrics.recordRecurring("created");
-        metrics.recordRecurring("not_found");
+        metrics.recordRecurring("create", "created");
+        metrics.recordRecurring("create", "not_found");
         return registry.scrape();
     }
 
@@ -38,6 +38,7 @@ class WealthMetricsPrometheusContractTests {
         assertThat(scrape).contains("wealth_recurring_total{");
         assertThat(scrape).contains("result=\"created\"");
         assertThat(scrape).contains("result=\"not_found\"");
+        assertThat(scrape).contains("operation=\"create\"");
     }
 
     @Test

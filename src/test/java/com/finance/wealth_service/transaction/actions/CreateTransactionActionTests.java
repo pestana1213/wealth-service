@@ -6,7 +6,7 @@ import com.finance.wealth_service.bucket.port.BucketPort;
 import com.finance.wealth_service.observability.WealthMetrics;
 import com.finance.wealth_service.transaction.dto.CreateTransactionRequest;
 import com.finance.wealth_service.common.Leg;
-import com.finance.wealth_service.transaction.dto.Movement;
+import com.finance.wealth_service.common.Movement;
 import com.finance.wealth_service.transaction.entity.Transaction;
 import com.finance.wealth_service.transaction.entity.TransactionCategory;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;

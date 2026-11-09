@@ -7,7 +7,7 @@ import com.finance.wealth_service.account.repository.AccountRepository;
 import com.finance.wealth_service.bucket.entity.Bucket;
 import com.finance.wealth_service.bucket.repository.BucketRepository;
 import com.finance.wealth_service.common.Leg;
-import com.finance.wealth_service.transaction.dto.Movement;
+import com.finance.wealth_service.common.Movement;
 import com.finance.wealth_service.transaction.entity.Transaction;
 import com.finance.wealth_service.transaction.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
@@ -65,12 +65,16 @@ public class Ledger {
             requireBucketInAccount(movement.to(), lockedBuckets);
             applyToAccounts(movement, lockedAccounts);
             applyToBuckets(movement, lockedBuckets);
-            return transactions.saveAndFlush(new Transaction(
+            Transaction transaction = new Transaction(
                     ownerOf(lockedAccounts),
                     accountOf(movement.from()), accountOf(movement.to()),
                     bucketOf(movement.from()),  bucketOf(movement.to()),
                     movement.amount(), movement.type(), movement.category(),
-                    movement.occurredAt(), movement.description(), movement.reversalOf()));
+                    movement.occurredAt(), movement.description(), movement.reversalOf());
+            if (movement.occurrence() != null) {
+                transaction.linkToRecurring(movement.occurrence().recurringId(), movement.occurrence().on());
+            }
+            return transactions.saveAndFlush(transaction);
         });
     }
 
