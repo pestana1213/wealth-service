@@ -10,7 +10,6 @@ import com.finance.wealth_service.exception.WealthException;
 import com.finance.wealth_service.observability.WealthMetrics;
 import com.finance.wealth_service.recurring.dto.ConfirmOccurrenceRequest;
 import com.finance.wealth_service.recurring.entity.Recurring;
-import com.finance.wealth_service.recurring.entity.RecurringMode;
 import com.finance.wealth_service.recurring.repository.RecurringRepository;
 import com.finance.wealth_service.transaction.actions.CreateTransactionAction;
 import com.finance.wealth_service.transaction.entity.Transaction;
@@ -74,7 +73,7 @@ public class ConfirmOccurrenceAction {
         Recurring recurring = recurringRepository
                 .findRecurringByIdForUser(user.subject(), user.issuer(), recurringId)
                 .orElseThrow(() -> new NotFoundException("Recurring not found"));
-        LocalDate occurrence = dueOccurrence(recurring);
+        LocalDate occurrence = DueOccurrence.of(recurring, LocalDate.now());
 
         BigDecimal amount = request.transactionAmount() == null
                 ? recurring.getTransactionAmount() : request.transactionAmount();
@@ -89,17 +88,6 @@ public class ConfirmOccurrenceAction {
         recurring.advance();
         recurringRepository.saveAndFlush(recurring);
         return transaction;
-    }
-
-    private static LocalDate dueOccurrence(Recurring recurring) {
-        if (recurring.getMode() != RecurringMode.CONFIRM)
-            throw new ConflictException("This recurring is recorded automatically");
-        LocalDate next = recurring.getNextOn();
-        if (next == null)
-            throw new ConflictException("This recurring has finished");
-        if (next.isAfter(LocalDate.now()))
-            throw new ConflictException("The next occurrence, on " + next + ", is not due yet");
-        return next;
     }
 
     private static Leg leg(UUID accountId, UUID bucketId) {
