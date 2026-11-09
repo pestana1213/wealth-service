@@ -103,16 +103,17 @@ Todos devolvem `404 Not Found` quando o utilizador não existe.
 
 ## Swagger / OpenAPI
 
-Depois de iniciar a aplicação, a documentação interativa está disponível em
-`/swagger-ui.html`. O documento OpenAPI pode ser consultado em `/api-docs`.
+A documentação está desligada por omissão. Com `API_DOCS_ENABLED=true`, a
+documentação interativa fica disponível em `/swagger-ui.html` e o documento
+OpenAPI em `/api-docs`.
 
 ## Métricas e logs
 
-Todas as requests HTTP são registadas com método, rota normalizada, status e
-duração. O filtro `RequestMetricsFilter` publica `wealth.http.requests` e
-`wealth.http.request.duration`, com tags de cardinalidade limitada.
+Todas as requests HTTP são registadas pelo `http.server.requests` do Spring, com
+método, template da rota (`uri`, por exemplo `/buckets/{bucketId}`), status,
+exceção e duração, e com histograma para os percentis.
 Os endpoints Actuator `health`, `info` e `metrics` estão expostos em
-`/actuator`. Consultar, por exemplo, `/actuator/metrics/wealth.http.requests`.
+`/actuator`. Consultar, por exemplo, `/actuator/metrics/http.server.requests`.
 
 ## Criar utilizador e conta
 
@@ -174,6 +175,10 @@ Ambos devolvem `400 Bad Request` para dados inválidos e `404 Not Found`
 quando o utilizador ou bucket associado não existe.
 
 ## Corrigir e retirar buckets, objetivos e transações
+
+`PATCH /accounts/{accountId}` — altera o nome e/ou o tipo (`SAVINGS` ou
+`INVESTMENT`). Campos omitidos ficam inalterados; o saldo só muda através de
+transações.
 
 `PATCH /buckets/{bucketId}` — altera o nome e/ou corrige o montante alocado.
 Campos omitidos ficam inalterados. Corrigir o montante é uma correção, não um

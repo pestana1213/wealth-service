@@ -6,7 +6,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.finance.wealth_service.bucket.actions.UpdateBucketAction;
 import com.finance.wealth_service.bucket.dto.CreateBucketResponse;
 import com.finance.wealth_service.bucket.dto.UpdateBucketRequest;
-import com.finance.wealth_service.bucket.entity.Bucket;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -33,7 +32,6 @@ public class UpdateBucket {
                     + "Changing the account is only allowed while the bucket is empty (409 otherwise).")
     public CreateBucketResponse updateBucket(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID bucketId,
                                              @Valid @RequestBody UpdateBucketRequest request) {
-        Bucket bucket = action.execute(user, bucketId, request);
-        return new CreateBucketResponse(bucket.getId(), bucket.getUserId(), bucket.getAccountId(), bucket.getName(), bucket.getCurrentAmount());
+        return CreateBucketResponse.from(action.execute(user, bucketId, request));
     }
 }

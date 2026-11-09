@@ -127,30 +127,16 @@ The four `wealth_*` domain meters are new. They are registered by
 `observability/WealthMetrics.java` and recorded by `CreateTransactionAction` and
 `GetDashboardAction`.
 
-## Five things to know before you trust it
+## Things to know before you trust it
 
-### `wealth_http_requests_total` never records a 5xx
+### HTTP panels use `http_server_requests` only
 
-`observability/RequestMetricsFilter` reads `response.getStatus()` in a `finally`
-block. For a request that ends in an unhandled exception, that block runs during
-the initial dispatch, *before* the container's error dispatch sets the status.
-The label is therefore the status at the end of the original dispatch, which is
-still `200`.
-
-Measured directly: two `POST /transactions` that each returned `500` were
-recorded as
-
-```
-wealth_http_requests_total{route="/transactions",status="200"} 2.0
-http_server_requests_seconds_count{uri="/transactions",status="500",exception="ConstraintViolationException"} 2
-```
-
-**Every status panel here uses `http_server_requests_seconds_count`**, which is
-recorded by the Spring interceptor after error handling and is accurate.
-`wealth_http_requests_total` is still useful as a route-normalised counter, but
-not for status. Its `route` label is the more valuable of the two: the filter
-collapses `/users/{uuid}/...` to `/users/{userId}/...` before tagging, which
-`http_server_requests` also does via its own `uri` template.
+There used to be a second, hand-rolled HTTP counter (`wealth_http_requests_total`,
+from a `RequestMetricsFilter`). It was removed: it recorded `200` for requests
+that ended in a `500`, and it put raw UUIDs into its `route` label for every path
+it did not know, so its cardinality had no bound. `http_server_requests` is
+recorded after error handling and tags the route template (`uri`), so it covers
+both jobs.
 
 ### p95 panels need a config line that was missing
 
@@ -162,9 +148,8 @@ work. Without it the timer is a summary, publishing only `_count`, `_sum` and
 looking perfectly valid. This is the same trap documented in control-hub's
 dashboard README, where `v1/applications p95` was empty for the same reason.
 
-`wealth_http_request_duration_seconds`, the pre-existing filter timer, is still
-a **summary** and has no buckets. It is not queried here. The three new domain
-timers call `publishPercentileHistogram()`, so their quantile panels work.
+The three domain timers call `publishPercentileHistogram()`, so their quantile
+panels work.
 
 ### `jvm_threads_live` does not exist in Spring Boot 4
 

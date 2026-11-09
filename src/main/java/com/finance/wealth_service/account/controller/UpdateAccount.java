@@ -3,7 +3,6 @@ package com.finance.wealth_service.account.controller;
 import com.finance.wealth_service.account.actions.UpdateAccountAction;
 import com.finance.wealth_service.account.dto.CreateAccountResponse;
 import com.finance.wealth_service.account.dto.UpdateAccountRequest;
-import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.auth.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,12 +24,11 @@ public class UpdateAccount {
         this.action = action;
     }
 
-    @PatchMapping("/accounts")
+    @PatchMapping("/accounts/{accountId}")
     @Operation(summary = "Update an account",
             description = "Updates the account name and/or type. Omitted fields are left unchanged. Balance changes go through transactions.")
-    public CreateAccountResponse updateAccount(@AuthenticationPrincipal AuthenticatedUser user, @Valid @RequestBody UpdateAccountRequest request) {
-        Account account = action.execute(user, request);
-        return new CreateAccountResponse(account.getId(), account.getUserId(), account.getName(),
-                account.getCurrentAmount(), account.getType());
+    public CreateAccountResponse updateAccount(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID accountId,
+                                               @Valid @RequestBody UpdateAccountRequest request) {
+        return CreateAccountResponse.from(action.execute(user, accountId, request));
     }
 }

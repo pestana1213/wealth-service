@@ -6,7 +6,7 @@ import com.finance.wealth_service.account.port.AccountPort;
 import com.finance.wealth_service.bucket.port.BucketPort;
 import com.finance.wealth_service.transaction.dto.MovementAcc;
 import com.finance.wealth_service.transaction.dto.MovementSource;
-import com.finance.wealth_service.transaction.dto.PageResponse;
+import com.finance.wealth_service.common.PageResponse;
 import com.finance.wealth_service.transaction.dto.TransactionDTO;
 import com.finance.wealth_service.transaction.entity.Transaction;
 import com.finance.wealth_service.transaction.entity.TransactionType;

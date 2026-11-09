@@ -6,6 +6,8 @@ import com.finance.wealth_service.account.repository.AccountRepository;
 import com.finance.wealth_service.auth.AuthenticatedUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
 import com.finance.wealth_service.exception.NotFoundException;
 
 @Service
@@ -17,8 +19,8 @@ public class UpdateAccountAction {
     }
 
     @Transactional
-    public Account execute(AuthenticatedUser user, UpdateAccountRequest request) {
-        Account account = accounts.findOwnedBy(request.accountId() ,user.subject(), user.issuer())
+    public Account execute(AuthenticatedUser user, UUID accountId, UpdateAccountRequest request) {
+        Account account = accounts.findOwnedBy(accountId, user.subject(), user.issuer())
                 .orElseThrow(() -> new NotFoundException("Account not found"));
         if (request.name() != null) {
             account.setName(request.name().strip());

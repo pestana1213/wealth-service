@@ -6,7 +6,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.finance.wealth_service.transaction.actions.CreateTransactionAction;
 import com.finance.wealth_service.transaction.dto.CreateTransactionRequest;
 import com.finance.wealth_service.transaction.dto.CreateTransactionResponse;
-import com.finance.wealth_service.transaction.entity.Transaction;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -27,12 +26,6 @@ public class CreateTransaction {
     @ResponseStatus(HttpStatus.CREATED)
     public CreateTransactionResponse create(@AuthenticationPrincipal AuthenticatedUser user,
                                             @Valid @RequestBody CreateTransactionRequest request) {
-        Transaction transaction = action.execute(user, request);
-        return new CreateTransactionResponse(
-                transaction.getId(), transaction.getUserId(), transaction.getProviderAccountId(),
-                transaction.getDestinationAccountId(), transaction.getSourceBucketId(),
-                transaction.getDestinationBucketId(), transaction.getTransactionAmount(),
-                transaction.getType(), transaction.getCategory(), transaction.getOccurredAt(),
-                transaction.getDescription(), transaction.getReversalOf());
+        return CreateTransactionResponse.from(action.execute(user, request));
     }
 }

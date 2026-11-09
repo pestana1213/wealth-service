@@ -25,6 +25,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -180,7 +181,22 @@ class TransactionReversalTests {
                 .andExpect(status().isOk());
         assertBalances("100.00", "10.00", "20.00", "0.00");
 
-        mvc.perform(post("/transactions/" + original + "/reversal")).andExpect(status().isConflict());
+        mvc.perform(post("/transactions/" + original + "/reversal"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(
+                        "A bucket in this transaction has moved to another account, so it can no longer be reversed"));
         assertBalances("100.00", "10.00", "20.00", "0.00");
+    }
+
+    @Test
+    void refusesToReverseWhenTheBucketIsArchived() throws Exception {
+        UUID original = create("\"toBucketId\":\"" + etfId + "\"");
+        create("\"fromBucketId\":\"" + etfId + "\",\"toAccountId\":\"" + brokerId + "\"");
+        mvc.perform(delete("/buckets/" + etfId)).andExpect(status().isNoContent());
+
+        mvc.perform(post("/transactions/" + original + "/reversal"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(
+                        "A bucket in this transaction is archived, so it can no longer be reversed"));
     }
 }

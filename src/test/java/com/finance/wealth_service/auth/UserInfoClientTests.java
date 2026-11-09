@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -85,6 +86,20 @@ class UserInfoClientTests {
     void unreachableProviderIsBadGateway() {
         server.stop(0);
         assertThatThrownBy(() -> new UserInfoClient(issuer).fetch("abc"))
+                .isInstanceOf(IdentityProviderException.class);
+    }
+
+    @Test
+    void stalledProviderIsBadGateway() {
+        server.createContext("/slow", exchange -> {
+            try {
+                Thread.sleep(2_000);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+            respond(exchange, 200, "{}");
+        });
+        assertThatThrownBy(() -> new UserInfoClient(issuer + "/slow", Duration.ofMillis(200)).fetch("abc"))
                 .isInstanceOf(IdentityProviderException.class);
     }
 

@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.finance.wealth_service.exception.ConflictException;
 import com.finance.wealth_service.exception.NotFoundException;
-import java.math.RoundingMode;
 
 @Service
 public class CreateGoalAction {
@@ -31,7 +30,6 @@ public class CreateGoalAction {
         if (bucket.isArchived()) {
             throw new ConflictException("Bucket is archived");
         }
-        return goals.save(new Goal(request.bucketId(),
-                request.goalAmount().setScale(2, RoundingMode.UNNECESSARY), request.goalObjective()));
+        return goals.save(new Goal(request.bucketId(), request.goalAmount(), request.goalObjective()));
     }
 }

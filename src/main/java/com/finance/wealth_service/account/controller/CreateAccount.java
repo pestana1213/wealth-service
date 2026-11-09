@@ -3,7 +3,6 @@ package com.finance.wealth_service.account.controller;
 import com.finance.wealth_service.account.actions.CreateAccountAction;
 import com.finance.wealth_service.account.dto.CreateAccountRequest;
 import com.finance.wealth_service.account.dto.CreateAccountResponse;
-import com.finance.wealth_service.account.entity.Account;
 import com.finance.wealth_service.auth.AuthenticatedUser;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -29,9 +28,7 @@ public class CreateAccount {
     @ResponseStatus(HttpStatus.CREATED)
     public CreateAccountResponse create(@AuthenticationPrincipal AuthenticatedUser user,
                                         @Valid @RequestBody CreateAccountRequest request) {
-        Account account = action.execute(user, request);
-        return new CreateAccountResponse(account.getId(), account.getUserId(), account.getName(),
-                account.getCurrentAmount(), account.getType());
+        return CreateAccountResponse.from(action.execute(user, request));
     }
 
 }

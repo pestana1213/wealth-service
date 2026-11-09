@@ -1,7 +1,7 @@
 package com.finance.wealth_service.transaction.controller;
 
 import com.finance.wealth_service.auth.AuthenticatedUser;
-import com.finance.wealth_service.transaction.dto.PageResponse;
+import com.finance.wealth_service.common.PageResponse;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import com.finance.wealth_service.transaction.actions.ListTransactions;

@@ -5,7 +5,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import com.finance.wealth_service.transaction.actions.ReverseTransactionAction;
 import com.finance.wealth_service.transaction.dto.CreateTransactionResponse;
-import com.finance.wealth_service.transaction.entity.Transaction;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
@@ -31,12 +30,6 @@ public class ReverseTransaction {
                     + "back to it. The original is kept. Reversing twice, or reversing a reversal, returns 409.")
     @ResponseStatus(HttpStatus.CREATED)
     public CreateTransactionResponse reverse(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID transactionId) {
-        Transaction transaction = action.execute(user, transactionId);
-        return new CreateTransactionResponse(
-                transaction.getId(), transaction.getUserId(), transaction.getProviderAccountId(),
-                transaction.getDestinationAccountId(), transaction.getSourceBucketId(),
-                transaction.getDestinationBucketId(), transaction.getTransactionAmount(),
-                transaction.getType(), transaction.getCategory(), transaction.getOccurredAt(),
-                transaction.getDescription(), transaction.getReversalOf());
+        return CreateTransactionResponse.from(action.execute(user, transactionId));
     }
 }

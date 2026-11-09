@@ -53,8 +53,8 @@ class GlobalExceptionHandlerTests {
 
     @Test
     void domainExceptionKeepsItsMessage() throws Exception {
-        mvc.perform(patch("/accounts").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"accountId\":\"" + UUID.randomUUID() + "\"}"))
+        mvc.perform(patch("/accounts/" + UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
                 .andExpect(status().isNotFound())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.detail").value("Account not found"));
@@ -62,7 +62,7 @@ class GlobalExceptionHandlerTests {
 
     @Test
     void malformedBodyDoesNotLeakParserDetails() throws Exception {
-        mvc.perform(patch("/accounts").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(patch("/accounts/" + UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"CHECKING\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("Malformed or unreadable request body"))

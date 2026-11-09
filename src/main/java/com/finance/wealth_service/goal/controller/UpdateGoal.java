@@ -6,7 +6,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.finance.wealth_service.goal.actions.UpdateGoalAction;
 import com.finance.wealth_service.goal.dto.CreateGoalResponse;
 import com.finance.wealth_service.goal.dto.UpdateGoalRequest;
-import com.finance.wealth_service.goal.entity.Goal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -31,7 +30,6 @@ public class UpdateGoal {
             description = "Updates the target amount and/or date. Omitted fields are left unchanged; the bucket is fixed.")
     public CreateGoalResponse updateGoal(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID goalId,
                                          @Valid @RequestBody UpdateGoalRequest request) {
-        Goal goal = action.execute(user, goalId, request);
-        return new CreateGoalResponse(goal.getId(), goal.getBucketId(), goal.getGoalAmount(), goal.getGoalObjective());
+        return CreateGoalResponse.from(action.execute(user, goalId, request));
     }
 }

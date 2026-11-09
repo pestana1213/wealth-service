@@ -1,6 +1,8 @@
 package com.finance.wealth_service.transaction.actions;
 
 import com.finance.wealth_service.auth.AuthenticatedUser;
+import com.finance.wealth_service.bucket.entity.Bucket;
+import com.finance.wealth_service.bucket.port.BucketPort;
 
 import com.finance.wealth_service.transaction.dto.Leg;
 import com.finance.wealth_service.transaction.dto.Movement;
@@ -23,10 +25,13 @@ import java.util.UUID;
 public class ReverseTransactionAction {
     private final TransactionRepository transactions;
     private final CreateTransactionAction createTransaction;
+    private final BucketPort buckets;
 
-    public ReverseTransactionAction(TransactionRepository transactions, CreateTransactionAction createTransaction) {
+    public ReverseTransactionAction(TransactionRepository transactions, CreateTransactionAction createTransaction,
+                                    BucketPort buckets) {
         this.transactions = transactions;
         this.createTransaction = createTransaction;
+        this.buckets = buckets;
     }
 
     public Transaction execute(AuthenticatedUser user, UUID transactionId) {
@@ -39,7 +44,30 @@ public class ReverseTransactionAction {
         if (transactions.existsByReversalOf(transactionId)) {
             throw new ConflictException("Transaction was already reversed");
         }
+        requireBucketUnchanged(user, original.getSourceBucketId(), original.getProviderAccountId());
+        requireBucketUnchanged(user, original.getDestinationBucketId(), original.getDestinationAccountId());
         return createTransaction.execute(mirrorOf(user, original));
+    }
+
+    /**
+     * The mirror must touch the same account and bucket as the original. A bucket
+     * archived or moved to another account since then makes that impossible for
+     * good, so it is refused here with a reason, rather than by the ledger's
+     * concurrency check, which would tell the caller to retry.
+     */
+    private void requireBucketUnchanged(AuthenticatedUser user, UUID bucketId, UUID accountId) {
+        if (bucketId == null) {
+            return;
+        }
+        Bucket bucket = buckets.findOwnedBy(bucketId, user.subject(), user.issuer())
+                .orElseThrow(() -> new ConflictException("A bucket in this transaction no longer exists"));
+        if (bucket.isArchived()) {
+            throw new ConflictException("A bucket in this transaction is archived, so it can no longer be reversed");
+        }
+        if (!bucket.getAccountId().equals(accountId)) {
+            throw new ConflictException(
+                    "A bucket in this transaction has moved to another account, so it can no longer be reversed");
+        }
     }
 
     private static Movement mirrorOf(AuthenticatedUser user, Transaction original) {

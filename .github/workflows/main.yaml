@@ -20,6 +20,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
+          cache: maven
+          cache: maven
+
+      # The image build skips tests and a push to main deploys, so this is the
+      # only gate. Testcontainers starts PostgreSQL in the runner's Docker.
+      - name: Run tests
+        run: ./mvnw -B verify
 
       - name: Login to GHCR
         uses: docker/login-action@v3

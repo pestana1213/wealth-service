@@ -24,9 +24,10 @@ public class AccountValuation {
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal value;
 
-    @PositiveOrZero
-    @Column(nullable = false, precision = 19, scale = 2)
-    private BigDecimal investedMoney; //same as the current amount on the account
+    // The account balance on valuedAt. It can be negative, as an account can be
+    // overdrawn. Null on rows recorded before the column existed.
+    @Column(name = "invested_money", precision = 19, scale = 2)
+    private BigDecimal investedMoney;
 
     @NotNull
     @Column(name = "valued_at", nullable = false)

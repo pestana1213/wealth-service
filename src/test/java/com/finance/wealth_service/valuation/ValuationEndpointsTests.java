@@ -66,6 +66,41 @@ class ValuationEndpointsTests {
         assertThat(accounts.findById(investmentId).orElseThrow().getCurrentAmount()).isEqualByComparingTo("1000.00");
     }
 
+    private void move(String side, String amount, String date) throws Exception {
+        mvc.perform(post("/transactions").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"" + side + "\":\"" + investmentId + "\",\"transactionAmount\":" + amount
+                                + ",\"category\":\"INVESTMENT\",\"occurredAt\":\"" + date + "\"}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void investedIsTheBalanceOnTheValuationDate() throws Exception {
+        move("toAccountId", "500", "2026-10-15");
+        move("fromAccountId", "200", "2026-10-20");
+        // Balance now 1300: 1000 at the start, +500 on the 15th, -200 on the 20th.
+        mvc.perform(post("/accounts/" + investmentId + "/valuations").contentType(MediaType.APPLICATION_JSON)
+                        .content(body("990", "2026-10-01")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.invested").value(1000.00));
+        mvc.perform(post("/accounts/" + investmentId + "/valuations").contentType(MediaType.APPLICATION_JSON)
+                        .content(body("1600", "2026-10-15")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.invested").value(1500.00));
+        mvc.perform(post("/accounts/" + investmentId + "/valuations").contentType(MediaType.APPLICATION_JSON)
+                        .content(body("1350", "2026-10-25")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.invested").value(1300.00));
+    }
+
+    @Test
+    void recordsValuationOfAnOverdrawnAccount() throws Exception {
+        move("fromAccountId", "1500", "2026-10-15");
+        mvc.perform(post("/accounts/" + investmentId + "/valuations").contentType(MediaType.APPLICATION_JSON)
+                        .content(body("0", "2026-10-20")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.invested").value(-500.00));
+    }
+
     @Test
     void listsValuationsNewestFirst() throws Exception {
         for (String date : new String[]{"2026-08-01", "2026-10-01", "2026-09-01"}) {

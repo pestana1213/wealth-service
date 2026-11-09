@@ -6,7 +6,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.finance.wealth_service.goal.actions.CreateGoalAction;
 import com.finance.wealth_service.goal.dto.CreateGoalRequest;
 import com.finance.wealth_service.goal.dto.CreateGoalResponse;
-import com.finance.wealth_service.goal.entity.Goal;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -27,7 +26,6 @@ public class CreateGoal {
     @ResponseStatus(HttpStatus.CREATED)
     public CreateGoalResponse create(@AuthenticationPrincipal AuthenticatedUser user,
                                      @Valid @RequestBody CreateGoalRequest request) {
-        Goal goal = action.execute(user, request);
-        return new CreateGoalResponse(goal.getId(), goal.getBucketId(), goal.getGoalAmount(), goal.getGoalObjective());
+        return CreateGoalResponse.from(action.execute(user, request));
     }
 }

@@ -3,37 +3,29 @@ package com.finance.wealth_service.account.actions;
 import com.finance.wealth_service.account.AccountType;
 import com.finance.wealth_service.account.dto.CreateAccountRequest;
 import com.finance.wealth_service.account.entity.Account;
-import com.finance.wealth_service.account.entity.User;
 import com.finance.wealth_service.account.repository.AccountRepository;
-import com.finance.wealth_service.account.repository.UserRepository;
+import com.finance.wealth_service.account.port.UserPort;
 import com.finance.wealth_service.auth.AuthenticatedUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.finance.wealth_service.exception.NotFoundException;
 import java.math.BigDecimal;
-import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class CreateAccountAction {
     private final AccountRepository accounts;
-    private final UserRepository users;
+    private final UserPort users;
 
-    public CreateAccountAction(AccountRepository accounts, UserRepository users) {
+    public CreateAccountAction(AccountRepository accounts, UserPort users) {
         this.accounts = accounts;
         this.users = users;
     }
 
     @Transactional
     public Account execute(AuthenticatedUser user, CreateAccountRequest request) {
-        AccountType type = AccountType.SAVINGS;
-        Optional<User> optionalUser = users.findBySubjectAndIssuer(user.subject(), user.issuer());
-        if (optionalUser.isEmpty()) {
-            throw new NotFoundException("User not found");
-        }
+        UUID userId = users.requireUserId(user);
         BigDecimal amount = request.currentAmount() == null ? BigDecimal.ZERO : request.currentAmount();
-        if (request.type() != null) {
-            type = request.type();
-        }
-        return accounts.save(new Account(optionalUser.get().getId(), request.name().strip(), amount, type));
+        AccountType type = request.type() == null ? AccountType.SAVINGS : request.type();
+        return accounts.save(new Account(userId, request.name().strip(), amount, type));
     }
 }

@@ -6,7 +6,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.finance.wealth_service.bucket.actions.CreateBucketAction;
 import com.finance.wealth_service.bucket.dto.CreateBucketRequest;
 import com.finance.wealth_service.bucket.dto.CreateBucketResponse;
-import com.finance.wealth_service.bucket.entity.Bucket;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -27,7 +26,6 @@ public class CreateBucket {
     @ResponseStatus(HttpStatus.CREATED)
     public CreateBucketResponse create(@AuthenticationPrincipal AuthenticatedUser user,
                                        @Valid @RequestBody CreateBucketRequest request) {
-        Bucket bucket = action.execute(user, request);
-        return new CreateBucketResponse(bucket.getId(), bucket.getUserId(), bucket.getAccountId(), bucket.getName(), bucket.getCurrentAmount());
+        return CreateBucketResponse.from(action.execute(user, request));
     }
 }

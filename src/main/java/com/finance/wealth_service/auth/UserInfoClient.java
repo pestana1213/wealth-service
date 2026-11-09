@@ -1,8 +1,10 @@
 package com.finance.wealth_service.auth;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
@@ -10,6 +12,8 @@ import org.springframework.web.client.RestClientException;
 import com.finance.wealth_service.exception.IdentityProviderException;
 import com.finance.wealth_service.exception.UnauthorizedException;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.Map;
 
 /**
@@ -22,14 +26,28 @@ import java.util.Map;
 public class UserInfoClient {
     private static final ParameterizedTypeReference<Map<String, Object>> JSON = new ParameterizedTypeReference<>() {};
 
-    private final RestClient http = RestClient.create();
+    // Registration waits on this call, so a stalled identity provider must fail it
+    // with a 502 instead of holding a request thread indefinitely.
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(3);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(5);
+
+    private final RestClient http;
     private final String issuer;
     // Looked up from the discovery document on first use, so the service starts
     // even when Zitadel is briefly unreachable. A failed lookup is retried.
     private volatile String userInfoEndpoint;
 
+    @Autowired
     public UserInfoClient(@Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer) {
+        this(issuer, READ_TIMEOUT);
+    }
+
+    UserInfoClient(String issuer, Duration readTimeout) {
         this.issuer = issuer.replaceAll("/+$", "");
+        HttpClient client = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
+        JdkClientHttpRequestFactory requests = new JdkClientHttpRequestFactory(client);
+        requests.setReadTimeout(readTimeout);
+        this.http = RestClient.builder().requestFactory(requests).build();
     }
 
     public UserProfile fetch(String accessToken) {

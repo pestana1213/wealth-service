@@ -181,8 +181,8 @@ class AccountEndpointsTests {
     void updatesAccountNameAndType() throws Exception {
         User user = users.saveAndFlush(TestUsers.newUser("João"));
         Account account = accounts.saveAndFlush(new Account(user.getId(), "Bank", new BigDecimal("10.00"), AccountType.SAVINGS));
-        mvc.perform(patch("/accounts").with(signedInAs(user)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"accountId\":\"" + account.getId() + "\",\"name\":\" Broker \",\"type\":\"INVESTMENT\"}"))
+        mvc.perform(patch("/accounts/" + account.getId()).with(signedInAs(user)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\" Broker \",\"type\":\"INVESTMENT\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Broker"))
                 .andExpect(jsonPath("$.type").value("INVESTMENT"))
@@ -196,8 +196,8 @@ class AccountEndpointsTests {
     void partialUpdateLeavesOmittedFieldsUnchanged() throws Exception {
         User user = users.saveAndFlush(TestUsers.newUser("João"));
         Account account = accounts.saveAndFlush(new Account(user.getId(), "Bank", BigDecimal.ZERO, AccountType.SAVINGS));
-        mvc.perform(patch("/accounts").with(signedInAs(user)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"accountId\":\"" + account.getId() + "\",\"type\":\"INVESTMENT\"}"))
+        mvc.perform(patch("/accounts/" + account.getId()).with(signedInAs(user)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"INVESTMENT\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Bank"))
                 .andExpect(jsonPath("$.type").value("INVESTMENT"));
@@ -206,8 +206,8 @@ class AccountEndpointsTests {
     @Test
     void rejectsUpdateOfUnknownAccount() throws Exception {
         User user = users.saveAndFlush(TestUsers.newUser("João"));
-        mvc.perform(patch("/accounts").with(signedInAs(user)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"accountId\":\"" + UUID.randomUUID() + "\",\"name\":\"Bank\"}"))
+        mvc.perform(patch("/accounts/" + UUID.randomUUID()).with(signedInAs(user)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Bank\"}"))
                 .andExpect(status().isNotFound());
     }
 
@@ -216,8 +216,8 @@ class AccountEndpointsTests {
         User owner = users.saveAndFlush(TestUsers.newUser("Owner"));
         User intruder = users.saveAndFlush(TestUsers.newUser("Intruder"));
         Account account = accounts.saveAndFlush(new Account(owner.getId(), "Bank", BigDecimal.ZERO, AccountType.SAVINGS));
-        mvc.perform(patch("/accounts").with(signedInAs(intruder)).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"accountId\":\"" + account.getId() + "\",\"name\":\"Mine\"}"))
+        mvc.perform(patch("/accounts/" + account.getId()).with(signedInAs(intruder)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Mine\"}"))
                 .andExpect(status().isNotFound());
         assertThat(accounts.findById(account.getId()).orElseThrow().getName()).isEqualTo("Bank");
     }
@@ -226,12 +226,11 @@ class AccountEndpointsTests {
     void rejectsInvalidUpdateRequests() throws Exception {
         User user = users.saveAndFlush(TestUsers.newUser("João"));
         Account account = accounts.saveAndFlush(new Account(user.getId(), "Bank", BigDecimal.ZERO, AccountType.SAVINGS));
-        String id = "\"accountId\":\"" + account.getId() + "\",";
         for (String body : new String[]{
-                "{" + id + "\"name\":\"   \"}",
-                "{" + id + "\"name\":\"" + "a".repeat(256) + "\"}",
-                "{" + id + "\"type\":\"CHECKING\"}"}) {
-            mvc.perform(patch("/accounts").with(signedInAs(user)).contentType(MediaType.APPLICATION_JSON).content(body))
+                "{\"name\":\"   \"}",
+                "{\"name\":\"" + "a".repeat(256) + "\"}",
+                "{\"type\":\"CHECKING\"}"}) {
+            mvc.perform(patch("/accounts/" + account.getId()).with(signedInAs(user)).contentType(MediaType.APPLICATION_JSON).content(body))
                     .andExpect(status().isBadRequest());
         }
         assertThat(accounts.findById(account.getId()).orElseThrow().getName()).isEqualTo("Bank");

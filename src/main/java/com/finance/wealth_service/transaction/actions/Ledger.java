@@ -130,7 +130,7 @@ public class Ledger {
             BigDecimal left = source.getCurrentAmount().subtract(movement.amount());
             if (left.compareTo(BigDecimal.ZERO) < 0) {
                 throw new InvalidRequestException(
-                        "Final Value from source bucket can't be less then 0");
+                        "Final Value from source bucket can't be less than 0");
             }
             source.setCurrentAmount(left);
             buckets.saveAndFlush(source);
