@@ -1,4 +1,4 @@
-package com.finance.wealth_service.transaction.dto;
+package com.finance.wealth_service.common;
 
 import java.util.UUID;
 
