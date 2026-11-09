@@ -13,6 +13,7 @@ public class WealthMetrics {
     public static final String TRANSACTION_DURATION = "wealth.transaction.duration";
     public static final String DASHBOARD_DURATION = "wealth.dashboard.duration";
     public static final String DASHBOARD_FAILURES = "wealth.dashboard.failures";
+    public static final String RECURRING = "wealth.recurring";
 
     private final MeterRegistry registry;
 
@@ -33,5 +34,10 @@ public class WealthMetrics {
 
     public void recordDashboardFailure(String reason) {
         Counter.builder(DASHBOARD_FAILURES).tag("reason", reason).register(registry).increment();
+    }
+
+    public void recordRecurring(String operation, String result) {
+        Counter.builder(RECURRING).tag("operation", operation).tag("result", result)
+                .register(registry).increment();
     }
 }

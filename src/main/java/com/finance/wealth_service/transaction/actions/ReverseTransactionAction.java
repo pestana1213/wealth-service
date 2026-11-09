@@ -4,8 +4,8 @@ import com.finance.wealth_service.auth.AuthenticatedUser;
 import com.finance.wealth_service.bucket.entity.Bucket;
 import com.finance.wealth_service.bucket.port.BucketPort;
 
-import com.finance.wealth_service.transaction.dto.Leg;
-import com.finance.wealth_service.transaction.dto.Movement;
+import com.finance.wealth_service.common.Leg;
+import com.finance.wealth_service.common.Movement;
 import com.finance.wealth_service.transaction.entity.Transaction;
 import com.finance.wealth_service.transaction.repository.TransactionRepository;
 import org.springframework.stereotype.Service;

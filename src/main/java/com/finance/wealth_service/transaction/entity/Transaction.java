@@ -6,6 +6,7 @@ import java.util.UUID;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Objects;
 
 @Entity
 @Table(name = "transactions")
@@ -59,6 +60,12 @@ public class Transaction {
     @Column(name = "reversal_of", updatable = false)
     private UUID reversalOf;
 
+    @Column(name = "recurring_id", updatable = false)
+    private UUID recurringId;
+
+    @Column(name = "occurrence_on", updatable = false)
+    private LocalDate occurrenceOn;
+
     protected Transaction() {
     }
 
@@ -88,6 +95,20 @@ public class Transaction {
 
     public UUID getReversalOf() {
         return reversalOf;
+    }
+
+    /** Marks this transaction as the given occurrence of a recurring; call before it is saved. */
+    public void linkToRecurring(UUID recurringId, LocalDate occurrenceOn) {
+        this.recurringId = Objects.requireNonNull(recurringId, "recurringId is required");
+        this.occurrenceOn = Objects.requireNonNull(occurrenceOn, "occurrenceOn is required");
+    }
+
+    public UUID getRecurringId() {
+        return recurringId;
+    }
+
+    public LocalDate getOccurrenceOn() {
+        return occurrenceOn;
     }
 
     public UUID getUserId() {
