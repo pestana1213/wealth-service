@@ -62,7 +62,7 @@ class ValuationEndpointsTests {
                 .andExpect(jsonPath("$.accountId").value(investmentId.toString()))
                 .andExpect(jsonPath("$.value").value(1250.50))
                 .andExpect(jsonPath("$.valuedAt").value("2026-10-01"));
-        assertThat(valuations.findByAccountIdOrderByValuedAtDesc(investmentId)).hasSize(1);
+        assertThat(valuations.findForAccountBetween(investmentId, null, null)).hasSize(1);
         assertThat(accounts.findById(investmentId).orElseThrow().getCurrentAmount()).isEqualByComparingTo("1000.00");
     }
 
@@ -77,6 +77,57 @@ class ValuationEndpointsTests {
                 .andExpect(jsonPath("$.length()").value(3))
                 .andExpect(jsonPath("$[0].valuedAt").value("2026-10-01"))
                 .andExpect(jsonPath("$[2].valuedAt").value("2026-08-01"));
+    }
+
+    private void recordThreeMonthlyValuations() throws Exception {
+        for (String date : new String[]{"2026-08-01", "2026-09-01", "2026-10-01"}) {
+            mvc.perform(post("/accounts/" + investmentId + "/valuations").contentType(MediaType.APPLICATION_JSON)
+                    .content(body("100", date))).andExpect(status().isCreated());
+        }
+    }
+
+    @Test
+    void filtersValuationsFromDateInclusive() throws Exception {
+        recordThreeMonthlyValuations();
+        mvc.perform(get("/accounts/" + investmentId + "/valuations").param("from", "2026-09-01"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].valuedAt").value("2026-10-01"))
+                .andExpect(jsonPath("$[1].valuedAt").value("2026-09-01"));
+    }
+
+    @Test
+    void filtersValuationsToDateInclusive() throws Exception {
+        recordThreeMonthlyValuations();
+        mvc.perform(get("/accounts/" + investmentId + "/valuations").param("to", "2026-09-01"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].valuedAt").value("2026-09-01"))
+                .andExpect(jsonPath("$[1].valuedAt").value("2026-08-01"));
+    }
+
+    @Test
+    void filtersValuationsWithinSingleDayRange() throws Exception {
+        recordThreeMonthlyValuations();
+        mvc.perform(get("/accounts/" + investmentId + "/valuations")
+                        .param("from", "2026-09-01").param("to", "2026-09-01"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].valuedAt").value("2026-09-01"));
+    }
+
+    @Test
+    void rejectsRangeEndingBeforeItStarts() throws Exception {
+        mvc.perform(get("/accounts/" + investmentId + "/valuations")
+                        .param("from", "2026-10-01").param("to", "2026-09-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("'to' must not be before 'from'"));
+    }
+
+    @Test
+    void rejectsMalformedRangeDate() throws Exception {
+        mvc.perform(get("/accounts/" + investmentId + "/valuations").param("from", "abc"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -116,6 +167,6 @@ class ValuationEndpointsTests {
             mvc.perform(post("/accounts/" + investmentId + "/valuations").contentType(MediaType.APPLICATION_JSON).content(content))
                     .andExpect(status().isBadRequest());
         }
-        assertThat(valuations.findByAccountIdOrderByValuedAtDesc(investmentId)).isEmpty();
+        assertThat(valuations.findForAccountBetween(investmentId, null, null)).isEmpty();
     }
 }
