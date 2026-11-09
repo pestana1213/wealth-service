@@ -40,7 +40,7 @@ public class DeleteRecurringAction {
         } catch (OptimisticLockingFailureException exception) {
             metrics.recordRecurring(OPERATION, "conflict");
             log.warn("Recurring {} changed while it was being deleted", recurringId);
-            throw new ConflictException("This recurring changed while it was being deleted; refresh and retry",
+            throw new ConflictException("This recurring changed while it was being deleted; refresh to see its current state",
                     exception);
         } catch (NotFoundException exception) {
             metrics.recordRecurring(OPERATION, "not_found");

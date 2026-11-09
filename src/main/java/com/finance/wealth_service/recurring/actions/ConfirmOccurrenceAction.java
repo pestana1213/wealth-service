@@ -57,7 +57,7 @@ public class ConfirmOccurrenceAction {
             metrics.recordRecurring(OPERATION, "conflict");
             log.warn("Occurrence of recurring {} was handled concurrently: {}",
                     recurringId, exception.getMostSpecificCause().getMessage());
-            throw new ConflictException("This occurrence was already handled; refresh and retry", exception);
+            throw new ConflictException("This occurrence was already handled; refresh to see its current state", exception);
         } catch (NotFoundException exception) {
             metrics.recordRecurring(OPERATION, "not_found");
             log.debug("Recurring {} not found for confirm", recurringId);
