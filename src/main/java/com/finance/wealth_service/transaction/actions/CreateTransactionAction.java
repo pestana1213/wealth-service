@@ -58,7 +58,6 @@ public class CreateTransactionAction {
         return ledger.post(movement);
     }
 
-    /** Runs the whole attempt, validation included, so every outcome lands in the metrics. */
     private Transaction record(Supplier<Transaction> attempt) {
         long started = System.nanoTime();
         try {
