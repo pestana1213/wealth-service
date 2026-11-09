@@ -26,6 +26,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -75,6 +76,24 @@ class GoalLifecycleTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.goalAmount").value(50000.00))
                 .andExpect(jsonPath("$.goalObjective").value("2030-01-01"));
+    }
+
+    @Test
+    void clearsGoalDateWhenSentAsNull() throws Exception {
+        mvc.perform(patch("/goals/" + goalId).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"goalObjective\":null}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.goalAmount").value(50000.00))
+                .andExpect(jsonPath("$.goalObjective").value(nullValue()));
+        assertThat(goals.findById(goalId).orElseThrow().getGoalObjective()).isNull();
+    }
+
+    @Test
+    void emptyPatchLeavesTheGoalAlone() throws Exception {
+        mvc.perform(patch("/goals/" + goalId).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.goalAmount").value(50000.00))
+                .andExpect(jsonPath("$.goalObjective").value("2027-12-31"));
     }
 
     @Test

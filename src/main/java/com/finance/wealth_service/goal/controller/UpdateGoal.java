@@ -27,7 +27,8 @@ public class UpdateGoal {
 
     @PatchMapping("/goals/{goalId}")
     @Operation(summary = "Update a goal",
-            description = "Updates the target amount and/or date. Omitted fields are left unchanged; the bucket is fixed.")
+            description = "Updates the target amount and/or date. Omitted fields are left unchanged; "
+                    + "goalObjective sent as null removes the date. The bucket is fixed.")
     public CreateGoalResponse updateGoal(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID goalId,
                                          @Valid @RequestBody UpdateGoalRequest request) {
         return CreateGoalResponse.from(action.execute(user, goalId, request));

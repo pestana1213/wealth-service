@@ -194,8 +194,9 @@ recusado em novas transações. O bucket tem de estar a zero; com dinheiro
 alocado devolve `409 Conflict`, porque esse saldo desapareceria do total
 alocado. Arquivar é idempotente e não existe endpoint para desarquivar.
 
-`PATCH /goals/{goalId}` — altera o montante pretendido e/ou a data. O bucket é
-fixo: apontar um objetivo a outro bucket é outro objetivo.
+`PATCH /goals/{goalId}` — altera o montante pretendido e/ou a data. Campos
+omitidos ficam inalterados; `"goalObjective": null` remove a data (JSON Merge
+Patch). O bucket é fixo: apontar um objetivo a outro bucket é outro objetivo.
 `DELETE /goals/{goalId}` — devolve `204 No Content` e remove a linha; nada
 referencia um objetivo. O bucket e a sua alocação não são afetados.
 

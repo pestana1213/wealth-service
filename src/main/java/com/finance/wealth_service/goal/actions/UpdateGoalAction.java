@@ -26,7 +26,7 @@ public class UpdateGoalAction {
         if (request.goalAmount() != null) {
             goal.setGoalAmount(request.goalAmount());
         }
-        if (request.goalObjective() != null) {
+        if (request.goalObjectiveSent()) {
             goal.setGoalObjective(request.goalObjective());
         }
         return goals.saveAndFlush(goal);
