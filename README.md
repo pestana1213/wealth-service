@@ -1,211 +1,217 @@
 # Wealth Service
 
-MVP para acompanhar dinheiro contribuído e onde está alocado, em EUR.
-O modelo tem apenas cinco entidades JPA:
+MVP for tracking money saved and where it is allocated, in EUR.
+The model has only five JPA entities:
 
-- `User`: proprietário das contas, buckets e transações.
-- `Account`: local onde o dinheiro está (banco, corretora, etc.).
-- `Bucket`: finalidade do dinheiro (casa, emergência, carro, VWCE, etc.).
-- `Goal`: montante pretendido e data opcional para um bucket.
-- `Transaction`: entrada, saída ou transferência, com montante positivo,
-  categoria, data e descrição.
+- `User`: owner of the accounts, buckets and transactions.
+- `Account`: where the money is (bank, broker, etc.).
+- `Bucket`: what the money is for (house, emergency fund, car, VWCE, etc.).
+- `Goal`: target amount and optional date for a bucket.
+- `Transaction`: income, expense or transfer, with a positive amount,
+  category, date and description.
 
-Investimentos são buckets com contribuições categorizadas como `INVESTMENT`.
-Não existem cotações, posições ou valorização de mercado.
+Investments are buckets whose contributions are categorised as `INVESTMENT`.
+There are no quotes, positions or market valuation.
 
-## Convenções das transações
+## Transaction conventions
 
-`providerAccountId` e `sourceBucketId` identificam a origem;
-`destinationAccountId` e `destinationBucketId` identificam o destino.
-Um bucket nulo representa dinheiro não alocado nessa conta.
+`providerAccountId` and `sourceBucketId` identify the source;
+`destinationAccountId` and `destinationBucketId` identify the destination.
+A null bucket means money that is not allocated within that account.
 
-| Operação | Tipo | Conta origem → destino | Bucket origem → destino |
+| Operation | Type | Source → destination account | Source → destination bucket |
 | --- | --- | --- | --- |
-| Receber salário | INCOME | nenhum → Bank | nenhum → nenhum |
-| Alocar 3.000 € a VWCE no Bank | TRANSFER | Bank → Bank | nenhum → VWCE |
-| Mover os mesmos 3.000 € para XTB | TRANSFER | Bank → XTB | VWCE → VWCE |
-| Libertar uma alocação | TRANSFER | Bank → Bank | VWCE → nenhum |
-| Pagar uma despesa da casa | EXPENSE | Bank → nenhum | Casa → nenhum |
+| Receive salary | INCOME | none → Bank | none → none |
+| Allocate €3,000 to VWCE at Bank | TRANSFER | Bank → Bank | none → VWCE |
+| Move the same €3,000 to XTB | TRANSFER | Bank → XTB | VWCE → VWCE |
+| Release an allocation | TRANSFER | Bank → Bank | VWCE → none |
+| Pay a house expense | EXPENSE | Bank → none | House → none |
 
-Os saldos atuais são persistidos em `Account.currentAmount` e
-`Bucket.currentAmount`, como `BigDecimal` com duas casas decimais.
-É possível indicar um saldo inicial no construtor; por omissão é zero.
-O dashboard poderá ler estes valores diretamente:
+Current balances are persisted in `Account.currentAmount` and
+`Bucket.currentAmount`, as `BigDecimal` with two decimal places.
+An initial balance can be passed to the constructor; it defaults to zero.
+The dashboard can read these values directly:
 
-- Conta: `Account.currentAmount`, o dinheiro que está nessa conta.
-- Bucket: `Bucket.currentAmount`, o dinheiro alocado a essa finalidade.
-- Total poupado: soma dos saldos das contas.
-- Cash disponível: total poupado menos soma dos saldos dos buckets.
+- Account: `Account.currentAmount`, the money held in that account.
+- Bucket: `Bucket.currentAmount`, the money allocated to that purpose.
+- Total saved: sum of the account balances.
+- Available cash: total saved minus the sum of the bucket balances.
 
-Contas e buckets são duas perspetivas sobre o mesmo dinheiro; não se somam
-entre si. Transferências não alteram o total poupado. Uma transferência
-entre contas que preserva o bucket também não altera o saldo desse bucket.
-Os saldos iniciais podem ser definidos diretamente, sem importar todo o histórico.
-Um saldo inicial definido diretamente não deve ser novamente somado como entrada.
+Accounts and buckets are two views of the same money; they are never added
+together. Transfers do not change the total saved. A transfer between accounts
+that keeps the bucket does not change that bucket's balance either.
+Initial balances can be set directly, without importing the full history.
+An initial balance set directly must not be added again as income.
 
-## Estado da implementação
+## Implementation status
 
-Entidades e migração Liquibase inicial. As referências entre entidades são
-campos UUID, sem associações JPA; as chaves estrangeiras mantêm a integridade
-referencial na base de dados. Existem endpoints de criação de utilizadores,
-contas, buckets e objetivos. Os fluxos `INCOME`, `EXPENSE` e `TRANSFER` atualizam as contas e buckets
-afetados e gravam a transação no mesmo `TransactionTemplate`.
-Mover dinheiro acontece num único sítio, o `Ledger`: é ele que adquire os locks,
-aplica a aritmética e grava o histórico, tudo dentro da mesma transação de base
-de dados. O `CreateTransactionAction` valida o pedido, chama o `Ledger` e traduz
-o resultado em estado HTTP, fora da transação. Uma reversão passa pelo mesmo
-`Ledger`, com a ligação à transação original num `NewTransaction`.
-As referências de origem e destino devem pertencer ao utilizador da transação.
-As contas e buckets são carregados com `FOR UPDATE NOWAIT`, primeiro contas
-e depois buckets, ordenados por UUID e sem bloquear o mesmo registo duas vezes.
-Se algum estiver bloqueado, a operação faz rollback e devolve `409 Conflict`,
-sem esperar pelo lock da linha nem repetir automaticamente. `@Version` permanece
-como proteção adicional contra atualizações concorrentes.
-`EXPENSE` subtrai da conta e do bucket de origem opcional; `TRANSFER` subtrai
-da origem e soma ao destino. Uma conta ou bucket presente nos dois lados
-mantém o saldo.
+Entities and the initial Liquibase migration. References between entities are
+UUID fields, with no JPA associations; foreign keys keep referential integrity
+in the database. There are endpoints to create users, accounts, buckets and
+goals. The `INCOME`, `EXPENSE` and `TRANSFER` flows update the affected
+accounts and buckets and save the transaction in the same `TransactionTemplate`.
+Moving money happens in a single place, the `Ledger`: it acquires the locks,
+applies the arithmetic and writes the history, all inside the same database
+transaction. `CreateTransactionAction` validates the request, calls the
+`Ledger` and maps the result to an HTTP status, outside the transaction. A
+reversal goes through the same `Ledger`, linked to the original transaction
+through a `NewTransaction`.
+Source and destination references must belong to the transaction's user.
+Accounts and buckets are loaded with `FOR UPDATE NOWAIT`, accounts first and
+then buckets, ordered by UUID and never locking the same row twice.
+If any of them is locked, the operation rolls back and returns `409 Conflict`,
+without waiting for the row lock or retrying automatically. `@Version` stays
+as an extra guard against concurrent updates.
+`EXPENSE` subtracts from the account and from the optional source bucket;
+`TRANSFER` subtracts from the source and adds to the destination. An account
+or bucket present on both sides keeps its balance.
 
-Saldo suficiente é verificado nos buckets e não nas contas. Uma conta pode
-ficar negativa: um saldo devedor ou um cartão de crédito é um estado real de
-uma conta, e uma despesa pode levá-la abaixo de zero. Um bucket não pode, por
-ser uma parte de dinheiro que existe nas contas; um movimento que o levasse
-abaixo de zero devolve `400 Bad Request` e não altera nada. A regra está no
-`Ledger`, na anotação `@PositiveOrZero` da entidade e na restrição
-`buckets_amount_not_negative`; as contas não têm restrição equivalente.
+Sufficient balance is checked on buckets, not on accounts. An account can go
+negative: an overdraft or a credit card is a real account state, and an
+expense can take it below zero. A bucket cannot, because it is a share of
+money that exists in the accounts; a movement that would take it below zero
+returns `400 Bad Request` and changes nothing. The rule lives in the `Ledger`,
+in the entity's `@PositiveOrZero` annotation and in the
+`buckets_amount_not_negative` constraint; accounts have no equivalent
+constraint.
 
-Persistir uma `Transaction` diretamente no repository não atualiza saldos;
-usar a action.
-A base de dados já valida montantes positivos e a estrutura das transferências.
+Persisting a `Transaction` directly through the repository does not update
+balances; use the action.
+The database already validates positive amounts and the shape of transfers.
 
-`POST /transactions` valida o pedido antes de tocar em saldos: `userId`, `type`,
-`category`, `occurredAt` e `transactionAmount` são obrigatórios, o montante é
-positivo com até 17 algarismos inteiros e duas casas decimais, `occurredAt` não
-pode ser futuro e `description` está limitada a 255 caracteres. Dados inválidos
-devolvem `400 Bad Request` em `application/problem+json`, com os campos em causa
-na propriedade `errors`. As referências de conta e bucket não são anotadas: quais
-podem ser nulas depende do `type`, pelo que essa regra continua na action e na
-restrição `transaction_accounts`.
+`POST /transactions` validates the request before touching any balance:
+`userId`, `type`, `category`, `occurredAt` and `transactionAmount` are
+required, the amount is positive with up to 17 integer digits and two decimal
+places, `occurredAt` cannot be in the future and `description` is limited to
+255 characters. Invalid data returns `400 Bad Request` as
+`application/problem+json`, with the offending fields in the `errors`
+property. Account and bucket references are not annotated: which of them may
+be null depends on the `type`, so that rule stays in the action and in the
+`transaction_accounts` constraint.
 
-O PostgreSQL é configurado em `application.properties`; o Hibernate valida
-o esquema criado pelo Liquibase. Java 25 é necessário.
+PostgreSQL is configured in `application.properties`; Hibernate validates the
+schema created by Liquibase. Java 25 is required.
 
-## Visualização
+## Read endpoints
 
-Os endpoints de leitura são:
+- `GET /users/{userId}/dashboard`: total, allocated amount, available cash,
+  accounts, buckets and goals (including each goal's current progress).
+- `GET /users/{userId}/accounts`: accounts and their balances.
+- `GET /users/{userId}/buckets`: buckets and their balances.
+- `GET /users/{userId}/goals`: goals and current progress.
 
-- `GET /users/{userId}/dashboard`: total, montante alocado, cash disponível,
-  contas, buckets e objetivos (incluindo progresso atual de cada objetivo).
-- `GET /users/{userId}/accounts`: contas e respetivos saldos.
-- `GET /users/{userId}/buckets`: buckets e respetivos saldos.
-- `GET /users/{userId}/goals`: objetivos e progresso atual.
-
-Todos devolvem `404 Not Found` quando o utilizador não existe.
+All of them return `404 Not Found` when the user does not exist.
 
 ## Swagger / OpenAPI
 
-A documentação está desligada por omissão. Com `API_DOCS_ENABLED=true`, a
-documentação interativa fica disponível em `/swagger-ui.html` e o documento
-OpenAPI em `/api-docs`.
+API docs are off by default. With `API_DOCS_ENABLED=true`, the interactive
+docs are available at `/swagger-ui.html` and the OpenAPI document at
+`/api-docs`.
 
-## Métricas e logs
+## Metrics and logs
 
-Todas as requests HTTP são registadas pelo `http.server.requests` do Spring, com
-método, template da rota (`uri`, por exemplo `/buckets/{bucketId}`), status,
-exceção e duração, e com histograma para os percentis.
-Os endpoints Actuator `health`, `info` e `metrics` estão expostos em
-`/actuator`. Consultar, por exemplo, `/actuator/metrics/http.server.requests`.
+Every HTTP request is recorded by Spring's `http.server.requests`, with
+method, route template (`uri`, for example `/buckets/{bucketId}`), status,
+exception and duration, plus a histogram for percentiles.
+The Actuator endpoints `health`, `info` and `metrics` are exposed under
+`/actuator`. See, for example, `/actuator/metrics/http.server.requests`.
 
-## Criar utilizador e conta
+## Create a user and an account
 
-`POST /users` — cria um utilizador e devolve `201 Created` com `id`, `name` e `email`.
+`POST /users` — creates a user and returns `201 Created` with `id`, `name` and `email`.
 
 ```json
 {"name": "João", "email": "joao@example.com"}
 ```
 
-`POST /accounts` — cria uma conta e devolve `201 Created` com `id`, `userId`,
-`name` e `currentAmount`. Usar o ID devolvido na criação do utilizador:
+`POST /accounts` — creates an account and returns `201 Created` with `id`,
+`userId`, `name` and `currentAmount`. Use the ID returned when the user was
+created:
 
 ```json
-{"userId": "<UUID do utilizador>", "name": "Bank", "currentAmount": 55000.00}
+{"userId": "<user UUID>", "name": "Bank", "currentAmount": 55000.00}
 ```
 
-`currentAmount` é opcional (omitido ou nulo assume `0.00`), com até 17
-algarismos inteiros e duas casas decimais. O saldo é definido diretamente;
-não é criada uma transação inicial. Saldos negativos são aceites para contas
-com saldo devedor. Os nomes são obrigatórios, limitados a 255 caracteres,
-e guardados sem espaços nas extremidades.
+`currentAmount` is optional (omitted or null means `0.00`), with up to 17
+integer digits and two decimal places. The balance is set directly; no initial
+transaction is created. Negative balances are accepted for overdrawn
+accounts. Names are required, limited to 255 characters, and stored without
+leading or trailing spaces.
 
-Dados inválidos devolvem `400 Bad Request`; um `userId` que não existe devolve
-`404 Not Found`. Estas operações criam registos de domínio; autenticação e
-login ainda não estão implementados.
+Invalid data returns `400 Bad Request`; a `userId` that does not exist returns
+`404 Not Found`. These operations create domain records; authentication and
+login are not implemented yet.
 
-O email é obrigatório nos novos utilizadores, validado até 254 caracteres,
-guardado em minúsculas e sem espaços nas extremidades. Emails repetidos,
-independentemente de maiúsculas/minúsculas, devolvem `409 Conflict`.
-A migração preserva utilizadores antigos com email nulo; os endereços reais
-terão de ser preenchidos posteriormente. O índice único aplica-se aos emails
-preenchidos, incluindo registos concorrentes.
+Email is required for new users, validated up to 254 characters, and stored
+lowercase without leading or trailing spaces. Duplicate emails, regardless of
+case, return `409 Conflict`. The migration keeps older users with a null
+email; their real addresses will have to be filled in later. The unique index
+applies to non-null emails, including concurrent inserts.
 
-## Criar bucket e objetivo
+## Create a bucket and a goal
 
-`POST /buckets` — devolve `201 Created` com `id`, `userId`, `name` e `currentAmount`.
+`POST /buckets` — returns `201 Created` with `id`, `userId`, `name` and `currentAmount`.
 
 ```json
-{"userId": "<UUID do utilizador>", "name": "Casa", "currentAmount": 27000.00}
+{"userId": "<user UUID>", "name": "House", "currentAmount": 27000.00}
 ```
 
-O utilizador deve existir. O nome é obrigatório, até 255 caracteres, e é
-guardado sem espaços nas extremidades. O saldo é opcional (omitido ou nulo
-assume zero), não negativo e limitado a 17 algarismos inteiros e duas casas
-decimais. Este saldo inicial representa uma alocação já existente; criar o
-bucket não altera saldos de contas nem cria uma transação.
+The user must exist. The name is required, up to 255 characters, and stored
+without leading or trailing spaces. The balance is optional (omitted or null
+means zero), non-negative and limited to 17 integer digits and two decimal
+places. This initial balance represents an existing allocation; creating the
+bucket does not change account balances or create a transaction.
 
-`POST /goals` — devolve `201 Created` com `id`, `bucketId`, `goalAmount` e `goalObjective`.
+`POST /goals` — returns `201 Created` with `id`, `bucketId`, `goalAmount` and `goalObjective`.
 
 ```json
-{"bucketId": "<UUID do bucket>", "goalAmount": 50000.00, "goalObjective": "2027-12-31"}
+{"bucketId": "<bucket UUID>", "goalAmount": 50000.00, "goalObjective": "2027-12-31"}
 ```
 
-O bucket deve existir. O montante é obrigatório, positivo e limitado a 17
-algarismos inteiros e duas casas decimais. A data é opcional, em formato
-`YYYY-MM-DD`; criar um objetivo não altera o saldo do bucket.
+The bucket must exist. The amount is required, positive and limited to 17
+integer digits and two decimal places. The date is optional, in `YYYY-MM-DD`
+format; creating a goal does not change the bucket's balance.
 
-Ambos devolvem `400 Bad Request` para dados inválidos e `404 Not Found`
-quando o utilizador ou bucket associado não existe.
+Both return `400 Bad Request` for invalid data and `404 Not Found` when the
+related user or bucket does not exist.
 
-## Corrigir e retirar buckets, objetivos e transações
+## Correct and retire buckets, goals and transactions
 
-`PATCH /accounts/{accountId}` — altera o nome e/ou o tipo (`SAVINGS` ou
-`INVESTMENT`). Campos omitidos ficam inalterados; o saldo só muda através de
-transações.
+`PATCH /accounts/{accountId}` — changes the name and/or the type (`SAVINGS` or
+`INVESTMENT`). Omitted fields stay unchanged; the balance only changes through
+transactions.
 
-`PATCH /buckets/{bucketId}` — altera o nome e/ou corrige o montante alocado.
-Campos omitidos ficam inalterados. Corrigir o montante é uma correção, não um
-movimento: não cria transação nem mexe nos saldos das contas, pelo que o total
-poupado não muda e só a divisão entre alocado e cash se ajusta. O montante é
-não negativo, com até 17 algarismos inteiros e duas casas decimais.
+`PATCH /buckets/{bucketId}` — changes the name and/or corrects the allocated
+amount. Omitted fields stay unchanged. Correcting the amount is a correction,
+not a movement: it creates no transaction and does not touch account balances,
+so the total saved does not change and only the split between allocated and
+cash adjusts. The amount is non-negative, with up to 17 integer digits and two
+decimal places.
 
-`DELETE /buckets/{bucketId}` — arquiva o bucket e devolve `204 No Content`. A
-linha é mantida: transações e objetivos referenciam `buckets(id)` e o histórico
-tem de continuar a nomear a finalidade onde o dinheiro esteve. Um bucket
-arquivado sai do dashboard e das listagens, leva os seus objetivos com ele e é
-recusado em novas transações. O bucket tem de estar a zero; com dinheiro
-alocado devolve `409 Conflict`, porque esse saldo desapareceria do total
-alocado. Arquivar é idempotente e não existe endpoint para desarquivar.
+`DELETE /buckets/{bucketId}` — archives the bucket and returns
+`204 No Content`. The row is kept: transactions and goals reference
+`buckets(id)` and the history must keep naming the purpose the money was in.
+An archived bucket leaves the dashboard and the listings, takes its goals with
+it, and is rejected in new transactions. The bucket must be at zero; with
+money allocated it returns `409 Conflict`, because that balance would vanish
+from the allocated total. Archiving is idempotent and there is no endpoint to
+unarchive.
 
-`PATCH /goals/{goalId}` — altera o montante pretendido e/ou a data. Campos
-omitidos ficam inalterados; `"goalObjective": null` remove a data (JSON Merge
-Patch). O bucket é fixo: apontar um objetivo a outro bucket é outro objetivo.
-`DELETE /goals/{goalId}` — devolve `204 No Content` e remove a linha; nada
-referencia um objetivo. O bucket e a sua alocação não são afetados.
+`PATCH /goals/{goalId}` — changes the target amount and/or the date. Omitted
+fields stay unchanged; `"goalObjective": null` removes the date (JSON Merge
+Patch). The bucket is fixed: pointing a goal at another bucket makes it a
+different goal.
+`DELETE /goals/{goalId}` — returns `204 No Content` and removes the row;
+nothing references a goal. The bucket and its allocation are not affected.
 
-`POST /transactions/{transactionId}/reversal` — devolve `201 Created` com uma
-transação compensatória que desfaz o efeito nos saldos e liga à original em
-`reversalOf`. A original é mantida, logo o histórico mostra o erro e a correção.
-A reversão troca origem e destino nos dois lados, o que transforma uma entrada
-numa saída e uma transferência na transferência oposta; é datada de hoje e
-passa pelo mesmo `CreateTransactionAction`, com os mesmos locks e validações.
-Reverter duas vezes a mesma transação, ou reverter uma reversão, devolve
-`409 Conflict`; um índice único em `reversal_of` garante isso mesmo em corrida.
-Uma transação cujo bucket já foi arquivado não pode ser revertida.
+`POST /transactions/{transactionId}/reversal` — returns `201 Created` with a
+compensating transaction that undoes the effect on balances and links to the
+original through `reversalOf`. The original is kept, so the history shows both
+the mistake and the correction. The reversal swaps source and destination on
+both sides, which turns income into an expense and a transfer into the
+opposite transfer; it is dated today and goes through the same
+`CreateTransactionAction`, with the same locks and validations.
+Reversing the same transaction twice, or reversing a reversal, returns
+`409 Conflict`; a unique index on `reversal_of` guarantees this even under
+races. A transaction whose bucket has already been archived cannot be
+reversed.
